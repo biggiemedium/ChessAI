@@ -1,8 +1,5 @@
 package dev.chess.cheat.Network.Model;
 
-/**
- * Represents the current state of a game
- */
 public class GameState {
     private String type;
     private String moves;

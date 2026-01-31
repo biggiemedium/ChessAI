@@ -1,8 +1,5 @@
 package dev.chess.cheat.Network.Model;
 
-/**
- * Represents a chess game from any platform
- */
 public class Game {
     private String id;
     private String platform;
@@ -16,7 +13,6 @@ public class Game {
     public Game() {
     }
 
-    // Getters and setters
     public String getId() {
         return id;
     }
@@ -79,10 +75,5 @@ public class Game {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Game[%s] %s vs %s on %s", id, whitePlayer, blackPlayer, platform);
     }
 }

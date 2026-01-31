@@ -2,35 +2,31 @@ package dev.chess.cheat.Network.Impl;
 
 import dev.chess.cheat.Network.*;
 import dev.chess.cheat.Network.Model.*;
+import dev.chess.cheat.Simulation.Piece;
+import dev.chess.cheat.Simulation.Impl.*;
 import java.net.URI;
 import java.net.http.*;
-import java.util.*;
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 
 /**
- * Chess.com API client (READ-ONLY)
- * Note: Chess.com does not support creating games or making moves via API
+ * Chess.com API client implementation
+ * Note: Chess.com API is READ-ONLY - does not support creating games or making moves
  */
-public class ChessComClient implements ChessClient {
+public class ChessComClient extends ChessClient {
 
     private static final String BASE_URL = "https://api.chess.com/pub";
-    private final HttpClient httpClient;
-    private final Gson gson;
     private String username;
 
     public ChessComClient() {
-        this.httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_2)
-                .build();
-        this.gson = new Gson();
+        super();
     }
 
     @Override
     public boolean authenticate(String username) {
         this.username = username;
-        // Chess.com public API doesn't require auth for read operations
-        // Just validate username exists
+        this.authToken = username;
+
         try {
             String url = BASE_URL + "/player/" + username;
             HttpRequest request = HttpRequest.newBuilder()
@@ -42,14 +38,14 @@ public class ChessComClient implements ChessClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return response.statusCode() == 200;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Authentication failed: " + e.getMessage());
             return false;
         }
     }
 
     @Override
-    public List<Game> getActiveGames() {
-        if (username == null) {
+    public Game getCurrentGame() {
+        if (!isAuthenticated()) {
             throw new IllegalStateException("Must authenticate first");
         }
 
@@ -65,26 +61,25 @@ public class ChessComClient implements ChessClient {
 
             if (response.statusCode() == 200) {
                 JsonObject json = gson.fromJson(response.body(), JsonObject.class);
-                List<Game> games = new ArrayList<>();
 
                 if (json.has("games")) {
-                    json.getAsJsonArray("games").forEach(gameElement -> {
-                        games.add(parseGame(gameElement.getAsJsonObject()));
-                    });
+                    JsonArray games = json.getAsJsonArray("games");
+                    if (games.size() > 0) {
+                        currentGame = parseGame(games.get(0).getAsJsonObject());
+                        syncToBoard();
+                        return currentGame;
+                    }
                 }
-
-                return games;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Failed to get current game: " + e.getMessage());
         }
 
-        return Collections.emptyList();
+        return null;
     }
 
     @Override
-    public Game getGame(String gameId) {
-        // Chess.com uses URLs as game IDs in their API
+    public Game loadGame(String gameId) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(gameId))
@@ -95,33 +90,43 @@ public class ChessComClient implements ChessClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                return parseGame(gson.fromJson(response.body(), JsonObject.class));
+                currentGame = parseGame(gson.fromJson(response.body(), JsonObject.class));
+                syncToBoard();
+                return currentGame;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Failed to load game: " + e.getMessage());
         }
 
         return null;
     }
 
     @Override
-    public boolean makeMove(String gameId, String move) {
-        throw new UnsupportedOperationException("Chess.com API does not support making moves");
+    public boolean makeMove(String move) {
+        throw new UnsupportedOperationException(
+                "Chess.com API does not support making moves. Consider using Lichess for bot play."
+        );
     }
 
     @Override
     public Game createGame(GameConfig config) {
-        throw new UnsupportedOperationException("Chess.com API does not support creating games");
+        throw new UnsupportedOperationException(
+                "Chess.com API does not support creating games. Consider using Lichess for bot play."
+        );
     }
 
     @Override
-    public void streamGameState(String gameId, GameStateListener listener) {
-        throw new UnsupportedOperationException("Chess.com API does not support streaming");
+    public void streamGameState(GameStateListener listener) {
+        throw new UnsupportedOperationException(
+                "Chess.com API does not support streaming. Consider using Lichess for bot play."
+        );
     }
 
     @Override
-    public boolean resign(String gameId) {
-        throw new UnsupportedOperationException("Chess.com API does not support resignations");
+    public boolean resign() {
+        throw new UnsupportedOperationException(
+                "Chess.com API does not support resignations. Consider using Lichess for bot play."
+        );
     }
 
     @Override
@@ -129,10 +134,52 @@ public class ChessComClient implements ChessClient {
         return false;
     }
 
+    @Override
+    protected boolean loadFenToBoard(String fen) {
+        try {
+            String[] parts = fen.split(" ");
+            String position = parts[0];
+
+            simulationBoard.clear();
+
+            String[] ranks = position.split("/");
+            for (int row = 0; row < 8; row++) {
+                int col = 0;
+                for (char c : ranks[row].toCharArray()) {
+                    if (Character.isDigit(c)) {
+                        col += Character.getNumericValue(c);
+                    } else {
+                        Piece piece = createPieceFromFen(c);
+                        if (piece != null) {
+                            simulationBoard.setPiece(row, col, piece);
+                        }
+                        col++;
+                    }
+                }
+            }
+
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to load FEN: " + e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    protected boolean loadPgnToBoard(String pgn) {
+        // TODO: Implement full PGN parser
+        // For now -> reset to starting position
+        simulationBoard.reset();
+        return true;
+    }
+
     private Game parseGame(JsonObject json) {
         Game game = new Game();
-        game.setId(json.has("url") ? json.get("url").getAsString() : "");
         game.setPlatform("Chess.com");
+
+        if (json.has("url")) {
+            game.setId(json.get("url").getAsString());
+        }
 
         if (json.has("fen")) {
             game.setFen(json.get("fen").getAsString());
@@ -146,6 +193,35 @@ public class ChessComClient implements ChessClient {
             game.setTimeControl(json.get("time_class").getAsString());
         }
 
+        if (json.has("white")) {
+            JsonObject white = json.getAsJsonObject("white");
+            if (white.has("username")) {
+                game.setWhitePlayer(white.get("username").getAsString());
+            }
+        }
+
+        if (json.has("black")) {
+            JsonObject black = json.getAsJsonObject("black");
+            if (black.has("username")) {
+                game.setBlackPlayer(black.get("username").getAsString());
+            }
+        }
+
         return game;
+    }
+
+    private Piece createPieceFromFen(char c) {
+        boolean isWhite = Character.isUpperCase(c);
+        char piece = Character.toLowerCase(c);
+
+        switch (piece) {
+            case 'p': return new Pawn(isWhite);
+            case 'r': return new Rook(isWhite);
+            case 'n': return new Knight(isWhite);
+            case 'b': return new Bishop(isWhite);
+            case 'q': return new Queen(isWhite);
+            case 'k': return new King(isWhite);
+            default: return null;
+        }
     }
 }

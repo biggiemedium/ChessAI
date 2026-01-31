@@ -16,9 +16,6 @@ public class Board {
         initializeBoard();
     }
 
-    /**
-     * Sets up the standard chess starting position
-     */
     private void initializeBoard() {
         // Black pieces (row 0 and 1)
         pieces[0][0] = new Rook(false);
@@ -49,9 +46,6 @@ public class Board {
         pieces[7][7] = new Rook(true);
     }
 
-    /**
-     * Get piece at position
-     */
     public Piece getPiece(int row, int col) {
         if (!isValidPosition(row, col)) {
             return null;
@@ -59,10 +53,12 @@ public class Board {
         return pieces[row][col];
     }
 
-    /**
-     * Move a piece from one position to another
-     * @return true if move was successful
-     */
+    public void setPiece(int row, int col, Piece piece) {
+        if (isValidPosition(row, col)) {
+            pieces[row][col] = piece;
+        }
+    }
+
     public boolean movePiece(int fromRow, int fromCol, int toRow, int toCol) {
         if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
             return false;
@@ -77,22 +73,15 @@ public class Board {
             return false;
         }
 
-        // Execute move
         pieces[toRow][toCol] = piece;
         pieces[fromRow][fromCol] = null;
         return true;
     }
 
-    /**
-     * Check if position is within board bounds
-     */
     public boolean isValidPosition(int row, int col) {
         return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
 
-    /**
-     * Clear the board
-     */
     public void clear() {
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
@@ -101,51 +90,19 @@ public class Board {
         }
     }
 
-    /**
-     * Reset board to starting position
-     */
     public void reset() {
         clear();
         initializeBoard();
     }
 
-    /**
-     * Get the raw board array (for piece validation)
-     */
     public Piece[][] getPieces() {
         return pieces;
     }
 
-    /**
-     * Display the board in console
-     */
-    public void display() {
-        System.out.println("  a b c d e f g h");
-        for (int row = 0; row < 8; row++) {
-            System.out.print((8 - row) + " ");
-            for (int col = 0; col < 8; col++) {
-                Piece piece = pieces[row][col];
-                if (piece == null) {
-                    System.out.print("· ");
-                } else {
-                    System.out.print(piece.toString() + " ");
-                }
-            }
-            System.out.println(8 - row);
-        }
-        System.out.println("  a b c d e f g h");
-    }
-
-    /**
-     * Convert algebraic notation to row (e.g., "e4" -> row 4)
-     */
     public static int algebraicToRow(String notation) {
         return 8 - Character.getNumericValue(notation.charAt(1));
     }
 
-    /**
-     * Convert algebraic notation to column (e.g., "e4" -> col 4)
-     */
     public static int algebraicToCol(String notation) {
         return notation.charAt(0) - 'a';
     }
