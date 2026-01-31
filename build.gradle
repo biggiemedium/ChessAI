@@ -1,12 +1,26 @@
 plugins {
     id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
-group = 'org.example'
+group = 'dev.chess.cheat'
 version = '1.0-SNAPSHOT'
+
+sourceCompatibility = '17'
+targetCompatibility = '17'
 
 repositories {
     mavenCentral()
+}
+
+javafx {
+    version = '21'
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.web']
+}
+
+application {
+    mainClass = 'dev.chess.cheat.Main'
 }
 
 dependencies {
@@ -14,10 +28,22 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    // GSON
+    // GSON for JSON parsing
     implementation 'com.google.code.gson:gson:2.13.2'
+
+    // OAuth and HTTP Client
+    implementation 'com.google.oauth-client:google-oauth-client:1.35.0'
+    implementation 'com.google.oauth-client:google-oauth-client-jetty:1.35.0'
 }
 
 test {
     useJUnitPlatform()
+}
+
+// Fix for JavaFX runtime
+tasks.withType(JavaExec) {
+    jvmArgs = [
+            '--module-path', configurations.runtimeClasspath.asPath,
+            '--add-modules', 'javafx.controls,javafx.fxml,javafx.web'
+    ]
 }
