@@ -11,7 +11,9 @@ import com.google.gson.JsonArray;
 
 /**
  * Chess.com API client implementation
- * Note: Chess.com API is READ-ONLY - does not support creating games or making moves
+ *
+ * Chess.com does not provide an API
+ * We must match their websocket or anticheat will flag our client
  */
 public class ChessComClient extends ChessClient {
 
@@ -31,7 +33,7 @@ public class ChessComClient extends ChessClient {
             String url = BASE_URL + "/player/" + username;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("User-Agent", "ChessBot/1.0")
+                    .header("User-Agent", "Chess/1.0")
                     .GET()
                     .build();
 

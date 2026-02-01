@@ -2,6 +2,9 @@ package dev.chess.cheat.Simulation.Impl;
 
 import dev.chess.cheat.Simulation.Piece;
 
+/**
+ * https://www.chess.com/terms/chess-queen
+ */
 public class Queen extends Piece {
 
     public Queen(boolean isWhite) {

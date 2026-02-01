@@ -2,6 +2,9 @@ package dev.chess.cheat.Simulation.Impl;
 
 import dev.chess.cheat.Simulation.Piece;
 
+/**
+ * https://www.chess.com/terms/chess-rook
+ */
 public class Rook extends Piece {
 
     public Rook(boolean isWhite) {

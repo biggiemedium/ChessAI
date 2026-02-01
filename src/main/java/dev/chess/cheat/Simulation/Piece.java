@@ -9,6 +9,7 @@ public abstract class Piece {
 
     /**
      * Validates if a move is legal for this piece
+     *
      * @param fromRow starting row (0-7)
      * @param fromCol starting column (0-7)
      * @param toRow destination row (0-7)
@@ -31,7 +32,8 @@ public abstract class Piece {
     }
 
     /**
-     * Helper method to check if destination square is valid
+     * Check if destination square is valid
+     *
      * @return true if destination is empty or has opponent piece
      */
     protected final boolean isValidDestination(Piece destination) {

@@ -42,10 +42,10 @@ public class MainScreen {
         root.setAlignment(Pos.TOP_CENTER);
         root.setSpacing(0);
 
-        // Custom title bar
+        // Title
         root.getChildren().add(createTitleBar());
 
-        // Main content
+        // content pane
         VBox content = new VBox(25);
         content.setPadding(new Insets(30, 40, 40, 40));
         content.setAlignment(Pos.TOP_CENTER);
@@ -175,7 +175,7 @@ public class MainScreen {
         VBox credBox = new VBox(12);
         credBox.setAlignment(Pos.CENTER);
 
-        // Username field
+        // user field
         VBox usernameBox = new VBox(5);
         Label usernameLabel = new Label("Username");
         usernameLabel.setFont(Font.font("Segoe UI", 12));

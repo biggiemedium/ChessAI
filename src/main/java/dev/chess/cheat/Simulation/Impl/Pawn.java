@@ -2,6 +2,9 @@ package dev.chess.cheat.Simulation.Impl;
 
 import dev.chess.cheat.Simulation.Piece;
 
+/**
+ * https://www.chess.com/terms/chess-pawn
+ */
 public class Pawn extends Piece {
 
     public Pawn(boolean isWhite) {
@@ -10,7 +13,7 @@ public class Pawn extends Piece {
 
     @Override
     public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        // White pawns move up (decreasing row), black pawns move down (increasing row)
+        // White pawns move up (decreasing row) : black pawns move down (increasing row)
         int direction = isWhite ? -1 : 1;
         int startRow = isWhite ? 6 : 1;
 
