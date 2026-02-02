@@ -29,6 +29,7 @@ public class RandomAlgorithm extends Algorithm {
             return null;
         }
 
+        // literally just doing a random legal move...
         nodesSearched = moves.size();
         return moves.get(random.nextInt(moves.size()));
     }

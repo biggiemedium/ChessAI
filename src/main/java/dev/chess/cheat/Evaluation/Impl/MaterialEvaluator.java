@@ -8,7 +8,11 @@ import dev.chess.cheat.Simulation.Piece;
  * Chess piece values indicate the value of the different chess pieces and how they relate to each other.
  * Every piece has different strengths and weaknesses, so they are valued differently
  *
+ * Chess Values:
  * https://www.chess.com/terms/chess-piece-value
+ *
+ * Material Evaluation:
+ * https://www.chessprogramming.org/Material
  */
 public class MaterialEvaluator implements Evaluator {
 
@@ -42,9 +46,6 @@ public class MaterialEvaluator implements Evaluator {
      */
     private int getPieceValue(Piece piece) {
         if (piece == null) return 0;
-
-        // TODO: Check piece type using getSymbol()
-        // TODO: Return appropriate value (PAWN_VALUE, KNIGHT_VALUE, etc.)
 
         char symbol = Character.toLowerCase(piece.getSymbol());
         switch (symbol) {

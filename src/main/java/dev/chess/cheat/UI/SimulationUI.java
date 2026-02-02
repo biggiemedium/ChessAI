@@ -3,7 +3,9 @@ package dev.chess.cheat.UI;
 import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Engine.SearchLogic.Algorithm;
 import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
+import dev.chess.cheat.Evaluation.Evaluator;
 import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
+import dev.chess.cheat.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Simulation.Runner.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -21,7 +23,7 @@ import javafx.stage.Stage;
 public class SimulationUI {
     private final Stage stage;
     private final AlgorithmFactory algorithmFactory;
-    private final MaterialEvaluator evaluator;
+    private final Evaluator evaluator;
     private final MoveGenerator moveGenerator;
 
     private Algorithm whiteAlgorithm;
@@ -58,7 +60,7 @@ public class SimulationUI {
         this.chartViewer = new ChartViewer();
         this.analyticsViewer = new AnalyticsViewer();
         this.algorithmFactory = new AlgorithmFactory();
-        this.evaluator = new MaterialEvaluator();
+        this.evaluator = new MasterEvaluator();
         this.moveGenerator = new MoveGenerator();
     }
 
@@ -168,7 +170,7 @@ public class SimulationUI {
 
         Label showBoardLabel = createLabel("Show Board:");
         showBoardCheckBox = new CheckBox();
-        showBoardCheckBox.setSelected(true);
+        showBoardCheckBox.setSelected(false);
         showBoardCheckBox.setOnAction(e -> {
             if (showBoardCheckBox.isSelected()) {
                 boardViewer.show();
