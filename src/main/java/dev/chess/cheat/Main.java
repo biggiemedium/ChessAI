@@ -6,6 +6,7 @@ import dev.chess.cheat.Evaluation.Evaluator;
 import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
 import dev.chess.cheat.UI.SimulationUI;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
@@ -23,6 +24,11 @@ public class Main extends Application {
         primaryStage = stage;
         primaryStage.setTitle("Chess Simulation");
         primaryStage.setResizable(false);
+
+        primaryStage.setOnCloseRequest(event -> {
+            Platform.exit();
+            System.exit(0);
+        });
 
         showSimulationUI();
         primaryStage.show();

@@ -9,6 +9,9 @@ import dev.chess.cheat.Simulation.Board;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * Algorithm that uses Java.util.Random to dictate moves
+ */
 public class RandomAlgorithm extends Algorithm {
 
     private final Random random = new Random();

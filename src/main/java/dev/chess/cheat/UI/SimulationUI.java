@@ -9,6 +9,9 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
@@ -29,6 +32,12 @@ public class SimulationUI {
     private ProgressBar progressBar;
     private Button startButton;
 
+    private Label whiteNodesLabel;
+    private Label blackNodesLabel;
+    private Label whiteTimeLabel;
+    private Label blackTimeLabel;
+    private Label currentMoveLabel;
+
     private ComboBox<String> whiteAlgorithmCombo;
     private ComboBox<String> blackAlgorithmCombo;
     private Spinner<Integer> whiteDepthSpinner;
@@ -40,10 +49,14 @@ public class SimulationUI {
     private CheckBox showBoardCheckBox;
 
     private BoardViewer boardViewer;
+    private ChartViewer chartViewer;
+    private AnalyticsViewer analyticsViewer;
 
     public SimulationUI(Stage stage) {
         this.stage = stage;
         this.boardViewer = new BoardViewer();
+        this.chartViewer = new ChartViewer();
+        this.analyticsViewer = new AnalyticsViewer();
         this.algorithmFactory = new AlgorithmFactory();
         this.evaluator = new MaterialEvaluator();
         this.moveGenerator = new MoveGenerator();
@@ -60,12 +73,13 @@ public class SimulationUI {
 
         GridPane algorithmSelector = createAlgorithmSelector();
         GridPane settingsGrid = createSettingsGrid();
+        HBox statsBox = createStatsBox();
         HBox controlBox = createControlBox();
 
         resultsArea = new TextArea();
         resultsArea.setEditable(false);
-        resultsArea.setPrefHeight(300);
-        resultsArea.setFont(Font.font("Monospaced", 12));
+        resultsArea.setPrefHeight(200);
+        resultsArea.setFont(Font.font("Monospaced", 11));
         resultsArea.setStyle("-fx-control-inner-background: #1e1e1e; -fx-text-fill: #00ff00;");
 
         progressBar = new ProgressBar(0);
@@ -76,10 +90,10 @@ public class SimulationUI {
 
         VBox.setVgrow(resultsArea, Priority.ALWAYS);
 
-        root.getChildren().addAll(title, algorithmSelector, settingsGrid, controlBox,
-                progressBar, statusLabel, resultsArea);
+        root.getChildren().addAll(title, algorithmSelector, settingsGrid, statsBox,
+                controlBox, progressBar, statusLabel, resultsArea);
 
-        return new Scene(root, 750, 750);
+        return new Scene(root, 850, 800);
     }
 
     private GridPane createAlgorithmSelector() {
@@ -150,7 +164,7 @@ public class SimulationUI {
 
         Label logLabel = createLabel("Log to File:");
         logFileCheckBox = new CheckBox();
-        logFileCheckBox.setSelected(true);
+        logFileCheckBox.setSelected(false);
 
         Label showBoardLabel = createLabel("Show Board:");
         showBoardCheckBox = new CheckBox();
@@ -184,6 +198,50 @@ public class SimulationUI {
         return grid;
     }
 
+    private HBox createStatsBox() {
+        HBox box = new HBox(20);
+        box.setPadding(new Insets(15));
+        box.setStyle("-fx-background-color: #1a1a1a; -fx-background-radius: 5;");
+        box.setAlignment(Pos.CENTER);
+
+        VBox whiteStats = new VBox(5);
+        Label whiteTitle = new Label("WHITE");
+        whiteTitle.setStyle("-fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 14px;");
+        whiteNodesLabel = createStatsLabel("Nodes: 0");
+        whiteTimeLabel = createStatsLabel("Time: 0ms");
+        whiteStats.getChildren().addAll(whiteTitle, whiteNodesLabel, whiteTimeLabel);
+
+        VBox currentMove = new VBox(5);
+        currentMove.setAlignment(Pos.CENTER);
+        Label moveTitle = new Label("CURRENT MOVE");
+        moveTitle.setStyle("-fx-text-fill: #ffaa00; -fx-font-weight: bold; -fx-font-size: 14px;");
+        currentMoveLabel = createStatsLabel("Move 0");
+        currentMoveLabel.setStyle("-fx-text-fill: #ffaa00; -fx-font-size: 18px; -fx-font-weight: bold;");
+        currentMove.getChildren().addAll(moveTitle, currentMoveLabel);
+
+        VBox blackStats = new VBox(5);
+        Label blackTitle = new Label("BLACK");
+        blackTitle.setStyle("-fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 14px;");
+        blackNodesLabel = createStatsLabel("Nodes: 0");
+        blackTimeLabel = createStatsLabel("Time: 0ms");
+        blackStats.getChildren().addAll(blackTitle, blackNodesLabel, blackTimeLabel);
+
+        Separator sep1 = new Separator();
+        sep1.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        Separator sep2 = new Separator();
+        sep2.setOrientation(javafx.geometry.Orientation.VERTICAL);
+
+        box.getChildren().addAll(whiteStats, sep1, currentMove, sep2, blackStats);
+
+        return box;
+    }
+
+    private Label createStatsLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill: #00ff00; -fx-font-size: 13px; -fx-font-family: 'Monospaced';");
+        return label;
+    }
+
     private HBox createControlBox() {
         HBox box = new HBox(10);
         box.setAlignment(Pos.CENTER);
@@ -194,9 +252,20 @@ public class SimulationUI {
 
         Button clearButton = new Button("Clear Results");
         clearButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        clearButton.setOnAction(e -> resultsArea.clear());
+        clearButton.setOnAction(e -> {
+            resultsArea.clear();
+            resetStats();
+        });
 
-        box.getChildren().addAll(startButton, clearButton);
+        Button chartButton = new Button("Show Charts");
+        chartButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        chartButton.setOnAction(e -> chartViewer.show());
+
+        Button analyticsButton = new Button("Show Analytics");
+        analyticsButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        analyticsButton.setOnAction(e -> analyticsViewer.show());
+
+        box.getChildren().addAll(startButton, clearButton, chartButton, analyticsButton);
         return box;
     }
 
@@ -204,6 +273,33 @@ public class SimulationUI {
         Label label = new Label(text);
         label.setStyle("-fx-text-fill: #ffffff;");
         return label;
+    }
+
+    private void resetStats() {
+        whiteNodesLabel.setText("Nodes: 0");
+        whiteTimeLabel.setText("Time: 0ms");
+        blackNodesLabel.setText("Nodes: 0");
+        blackTimeLabel.setText("Time: 0ms");
+        currentMoveLabel.setText("Move 0");
+        chartViewer.clear();
+        analyticsViewer.reset();
+    }
+
+    public void updateMoveStats(int moveNumber, boolean isWhite, int nodes, long timeMs) {
+        Platform.runLater(() -> {
+            currentMoveLabel.setText("Move " + moveNumber);
+
+            if (isWhite) {
+                whiteNodesLabel.setText("Nodes: " + String.format("%,d", nodes));
+                whiteTimeLabel.setText("Time: " + timeMs + "ms");
+            } else {
+                blackNodesLabel.setText("Nodes: " + String.format("%,d", nodes));
+                blackTimeLabel.setText("Time: " + timeMs + "ms");
+            }
+
+            chartViewer.addDataPoint(moveNumber, isWhite, nodes, timeMs);
+            analyticsViewer.addMoveData(moveNumber, isWhite, nodes, timeMs);
+        });
     }
 
     private void runSimulation() {
@@ -229,6 +325,8 @@ public class SimulationUI {
             boardViewer.show();
         }
 
+        resetStats();
+        analyticsViewer.setGameStatus("Running");
         startButton.setDisable(true);
         resultsArea.clear();
         progressBar.setProgress(0);
@@ -243,6 +341,7 @@ public class SimulationUI {
                 Simulator simulator = new Simulator(maxMoves);
                 simulator.setBoardViewer(showBoard ? boardViewer : null);
                 simulator.setMoveDelay(moveDelay);
+                simulator.setStatsCallback(this::updateMoveStats);
 
                 SimulationStats stats = simulator.runGames(
                         whiteAlgorithm, blackAlgorithm, 1, whiteDepth, blackDepth, logToFile
@@ -251,6 +350,8 @@ public class SimulationUI {
                 GameStats game = stats.games.get(0);
 
                 Platform.runLater(() -> {
+                    analyticsViewer.setGameStatus(game.outcome.toString());
+
                     resultsArea.appendText("=".repeat(70) + "\n");
                     resultsArea.appendText("GAME COMPLETE\n");
                     resultsArea.appendText("=".repeat(70) + "\n");
@@ -259,11 +360,11 @@ public class SimulationUI {
                     resultsArea.appendText(String.format("Result: %s\n", game.outcome));
                     resultsArea.appendText(String.format("Total Moves: %d\n", game.moves.size()));
                     resultsArea.appendText(String.format("Total Time: %dms\n", game.totalTimeMs));
-                    resultsArea.appendText(String.format("Total Nodes: %d\n", game.totalNodes));
+                    resultsArea.appendText(String.format("Total Nodes: %,d\n", game.totalNodes));
                     resultsArea.appendText(String.format("Peak Memory: %dKB\n", game.peakMemoryBytes / 1024));
                     resultsArea.appendText(String.format("Avg Time/Move: %dms\n",
                             game.moves.isEmpty() ? 0 : game.totalTimeMs / game.moves.size()));
-                    resultsArea.appendText(String.format("Avg Nodes/Move: %d\n",
+                    resultsArea.appendText(String.format("Avg Nodes/Move: %,d\n",
                             game.moves.isEmpty() ? 0 : game.totalNodes / game.moves.size()));
                     resultsArea.appendText("=".repeat(70) + "\n");
 
@@ -277,6 +378,7 @@ public class SimulationUI {
                     showAlert("Error", "Simulation failed: " + e.getMessage());
                     startButton.setDisable(false);
                     statusLabel.setText("Error occurred");
+                    analyticsViewer.setGameStatus("Error");
                 });
                 e.printStackTrace();
             }

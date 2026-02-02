@@ -10,6 +10,11 @@ public class Simulator {
     private final int maxMoves;
     private BoardViewer boardViewer;
     private int moveDelayMs = 500;
+    private StatsCallback statsCallback;
+
+    public interface StatsCallback {
+        void onMoveComplete(int moveNumber, boolean isWhite, int nodes, long timeMs);
+    }
 
     public Simulator(int maxMoves) {
         this.maxMoves = maxMoves;
@@ -21,6 +26,10 @@ public class Simulator {
 
     public void setMoveDelay(int delayMs) {
         this.moveDelayMs = delayMs;
+    }
+
+    public void setStatsCallback(StatsCallback callback) {
+        this.statsCallback = callback;
     }
 
     public SimulationStats runGames(Algorithm white, Algorithm black, int numGames,
@@ -113,18 +122,24 @@ public class Simulator {
                 break;
             }
 
+            int nodes = current.getNodesSearched();
+
             System.out.println(player + " plays: " + move.toUCI());
             System.out.println("  Time: " + timeMs + "ms");
-            System.out.println("  Nodes: " + current.getNodesSearched());
+            System.out.println("  Nodes: " + String.format("%,d", nodes));
             System.out.println("  Memory: " + (memUsed / 1024) + "KB");
-            System.out.println("  Nodes/sec: " + (timeMs > 0 ? (current.getNodesSearched() * 1000 / timeMs) : 0));
+            System.out.println("  Nodes/sec: " + (timeMs > 0 ? String.format("%,d", (nodes * 1000 / timeMs)) : "N/A"));
 
             if (game.isInCheck()) {
                 System.out.println("  ** CHECK! **");
             }
 
-            stats.addMove(move, timeMs, current.getNodesSearched(), memUsed);
+            stats.addMove(move, timeMs, nodes, memUsed);
             moveCount++;
+
+            if (statsCallback != null) {
+                statsCallback.onMoveComplete(moveCount, !isWhiteTurn, nodes, timeMs);
+            }
 
             if (boardViewer != null) {
                 String status = String.format("Game %d - Move %d: %s played %s | %s to move",
