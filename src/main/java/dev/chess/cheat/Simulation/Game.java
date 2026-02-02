@@ -5,12 +5,10 @@ import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Engine.SearchLogic.Algorithm;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * Represents an ongoing chess game
- * Manages game state, move history, turn tracking, and game outcome
- */
 public class Game {
 
     private final Board board;
@@ -20,6 +18,8 @@ public class Game {
     private GameStatus status;
     private Algorithm whiteAlgorithm;
     private Algorithm blackAlgorithm;
+    private final Map<String, Integer> positionCount;
+    private int movesSinceCaptureOrPawn;
 
     public enum GameStatus {
         IN_PROGRESS,
@@ -35,13 +35,10 @@ public class Game {
         this.isWhiteTurn = true;
         this.moveHistory = new ArrayList<>();
         this.status = GameStatus.IN_PROGRESS;
+        this.positionCount = new HashMap<>();
+        this.movesSinceCaptureOrPawn = 0;
     }
 
-    /**
-     * Make a move using row/column coordinates
-     *
-     * @return true if move was successful
-     */
     public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol) {
         if (status != GameStatus.IN_PROGRESS) {
             return false;
@@ -59,20 +56,27 @@ public class Game {
             return false;
         }
 
-        // Execute move
+        boolean isPawnMove = piece.getSymbol() == 'P' || piece.getSymbol() == 'p';
+        boolean isCapture = captured != null;
+
         board.movePiece(move);
         moveHistory.add(move);
         isWhiteTurn = !isWhiteTurn;
 
-        // Update game status
+        if (isPawnMove || isCapture) {
+            movesSinceCaptureOrPawn = 0;
+            positionCount.clear();
+        } else {
+            movesSinceCaptureOrPawn++;
+            String positionKey = getBoardHash();
+            positionCount.put(positionKey, positionCount.getOrDefault(positionKey, 0) + 1);
+        }
+
         updateGameStatus();
 
         return true;
     }
 
-    /**
-     * Make a move using algebraic notation (e.g., "e2" to "e4")
-     */
     public boolean makeMove(String from, String to) {
         int fromRow = Board.algebraicToRow(from);
         int fromCol = Board.algebraicToCol(from);
@@ -82,16 +86,10 @@ public class Game {
         return makeMove(fromRow, fromCol, toRow, toCol);
     }
 
-    /**
-     * Make a move using a Move object
-     */
     public boolean makeMove(Move move) {
         return makeMove(move.getFromRow(), move.getFromCol(), move.getToRow(), move.getToCol());
     }
 
-    /**
-     * Undo the last move
-     */
     public boolean undoLastMove() {
         if (moveHistory.isEmpty()) {
             return false;
@@ -105,16 +103,10 @@ public class Game {
         return true;
     }
 
-    /**
-     * Get all legal moves for the current player
-     */
     public List<Move> getLegalMoves() {
         return moveGenerator.generateAllMoves(board, isWhiteTurn);
     }
 
-    /**
-     * Get all legal moves for a specific piece
-     */
     public List<Move> getLegalMovesForPiece(int row, int col) {
         Piece piece = board.getPiece(row, col);
         if (piece == null || piece.isWhite() != isWhiteTurn) {
@@ -133,9 +125,6 @@ public class Game {
         return legalMoves;
     }
 
-    /**
-     * Let the engine make a move for the current player
-     */
     public Move makeEngineMove(Algorithm algorithm, int depth) {
         if (status != GameStatus.IN_PROGRESS) {
             return null;
@@ -149,17 +138,11 @@ public class Game {
         return bestMove;
     }
 
-    /**
-     * Set algorithms for both players (for engine vs engine games)
-     */
     public void setEngines(Algorithm whiteAlgorithm, Algorithm blackAlgorithm) {
         this.whiteAlgorithm = whiteAlgorithm;
         this.blackAlgorithm = blackAlgorithm;
     }
 
-    /**
-     * Play one engine move (useful for engine vs engine)
-     */
     public Move playEngineMove(int depth) {
         Algorithm currentAlgorithm = isWhiteTurn ? whiteAlgorithm : blackAlgorithm;
         if (currentAlgorithm == null) {
@@ -168,9 +151,6 @@ public class Game {
         return makeEngineMove(currentAlgorithm, depth);
     }
 
-    /**
-     * Update the game status based on current position
-     */
     private void updateGameStatus() {
         if (moveGenerator.isCheckmate(board, isWhiteTurn)) {
             status = isWhiteTurn ? GameStatus.BLACK_WINS : GameStatus.WHITE_WINS;
@@ -181,70 +161,61 @@ public class Game {
         }
     }
 
-    /**
-     * Check if current position is in check
-     */
     public boolean isInCheck() {
         return moveGenerator.isKingInCheck(board, isWhiteTurn);
     }
 
-    /**
-     * Simple draw by repetition check (can be enhanced)
-     */
     private boolean isDrawByRepetition() {
-        // TODO: Implement proper position repetition tracking
-        return false;
+        String currentPosition = getBoardHash();
+        return positionCount.getOrDefault(currentPosition, 0) >= 3;
     }
 
-    /**
-     * Check for fifty-move rule
-     */
     private boolean isDrawByFiftyMoveRule() {
-        // TODO: Implement fifty-move rule tracking
-        return false;
+        return movesSinceCaptureOrPawn >= 100;
     }
 
-    /**
-     * Reset the game to starting position
-     */
+    private String getBoardHash() {
+        StringBuilder hash = new StringBuilder();
+        Piece[][] pieces = board.getPieces();
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = pieces[row][col];
+                if (piece == null) {
+                    hash.append('.');
+                } else {
+                    hash.append(piece.getSymbol());
+                }
+            }
+        }
+        hash.append(isWhiteTurn ? 'W' : 'B');
+        return hash.toString();
+    }
+
     public void reset() {
         board.reset();
         moveHistory.clear();
         isWhiteTurn = true;
         status = GameStatus.IN_PROGRESS;
+        positionCount.clear();
+        movesSinceCaptureOrPawn = 0;
     }
 
-    /**
-     * Get move count
-     */
     public int getMoveCount() {
         return moveHistory.size();
     }
 
-    /**
-     * Get full move number (increments after black's move)
-     */
     public int getFullMoveNumber() {
         return (moveHistory.size() / 2) + 1;
     }
 
-    /**
-     * Get the last move played
-     */
     public Move getLastMove() {
         return moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1);
     }
 
-    /**
-     * Get complete move history
-     */
     public List<Move> getMoveHistory() {
         return new ArrayList<>(moveHistory);
     }
 
-    /**
-     * Display the move history in UCI (Universal Chess Interface) notation
-     */
     public String getMoveHistoryUCI() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < moveHistory.size(); i++) {
@@ -256,7 +227,6 @@ public class Game {
         return sb.toString().trim();
     }
 
-    // Getters
     public Board getBoard() {
         return board;
     }
@@ -280,7 +250,6 @@ public class Game {
     public boolean isGameOver() {
         return status != GameStatus.IN_PROGRESS;
     }
-
 
     @Override
     public String toString() {

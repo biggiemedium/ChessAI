@@ -4,8 +4,7 @@ import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Engine.SearchLogic.Impl.MinimaxAlgorithm;
 import dev.chess.cheat.Evaluation.Evaluator;
 import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
-import dev.chess.cheat.UI.ChessBoardScreen;
-import dev.chess.cheat.UI.MainScreen;
+import dev.chess.cheat.UI.SimulationUI;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -22,24 +21,24 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         primaryStage = stage;
-        primaryStage.initStyle(StageStyle.UNDECORATED);
-        primaryStage.setTitle("Chess Bot");
+        primaryStage.setTitle("Chess Simulation");
         primaryStage.setResizable(false);
 
-        showChessBoard();
+        showSimulationUI();
         primaryStage.show();
     }
 
-    private void showChessBoard() {
-        ChessBoardScreen chessBoardScreen = new ChessBoardScreen(primaryStage);
-
-        Evaluator evaluator = new MaterialEvaluator();
+    private void showSimulationUI() {
+        MaterialEvaluator evaluator = new MaterialEvaluator();
         MoveGenerator moveGen = new MoveGenerator();
-        MinimaxAlgorithm minimax = new MinimaxAlgorithm(evaluator, moveGen);
 
-        chessBoardScreen.setAIEngine(minimax, evaluator, 4);
+        MinimaxAlgorithm white = new MinimaxAlgorithm(evaluator, moveGen);
+        MinimaxAlgorithm black = new MinimaxAlgorithm(evaluator, moveGen);
 
-        primaryStage.setScene(chessBoardScreen.getScene());
+        SimulationUI ui = new SimulationUI(primaryStage);
+        ui.setAlgorithms(white, black);
+
+        primaryStage.setScene(ui.createScene());
     }
 
     public static Stage getPrimaryStage() {

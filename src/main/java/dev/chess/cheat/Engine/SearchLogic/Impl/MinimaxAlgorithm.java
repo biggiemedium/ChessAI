@@ -104,9 +104,4 @@ public class MinimaxAlgorithm extends Algorithm {
     public String getName() {
         return "Minimax";
     }
-
-
-    private class GameTree {
-
-    }
 }
