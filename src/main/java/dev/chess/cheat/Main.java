@@ -1,5 +1,10 @@
 package dev.chess.cheat;
 
+import dev.chess.cheat.Engine.MoveGenerator;
+import dev.chess.cheat.Engine.SearchLogic.Impl.MinimaxAlgorithm;
+import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
+import dev.chess.cheat.UI.ChessBoardScreen;
 import dev.chess.cheat.UI.MainScreen;
 import javafx.application.Application;
 import javafx.stage.Stage;
@@ -17,17 +22,24 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         primaryStage = stage;
-        primaryStage.initStyle(StageStyle.UNDECORATED); // Remove default window frame
+        primaryStage.initStyle(StageStyle.UNDECORATED);
         primaryStage.setTitle("Chess Bot");
         primaryStage.setResizable(false);
 
-        showMainScreen();
+        showChessBoard();
         primaryStage.show();
     }
 
-    private void showMainScreen() {
-        MainScreen mainScreen = new MainScreen(primaryStage);
-        primaryStage.setScene(mainScreen.getScene());
+    private void showChessBoard() {
+        ChessBoardScreen chessBoardScreen = new ChessBoardScreen(primaryStage);
+
+        Evaluator evaluator = new MaterialEvaluator();
+        MoveGenerator moveGen = new MoveGenerator();
+        MinimaxAlgorithm minimax = new MinimaxAlgorithm(evaluator, moveGen);
+
+        chessBoardScreen.setAIEngine(minimax, evaluator, 4);
+
+        primaryStage.setScene(chessBoardScreen.getScene());
     }
 
     public static Stage getPrimaryStage() {

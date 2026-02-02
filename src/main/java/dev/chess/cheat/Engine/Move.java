@@ -8,7 +8,7 @@ public class Move {
     private final int fromCol;
     private final int toRow;
     private final int toCol;
-    private final Piece capturedPiece;
+    private Piece capturedPiece;
     private double score;
 
     public Move(int fromRow, int fromCol, int toRow, int toCol) {
@@ -35,6 +35,8 @@ public class Move {
     public Piece getCapturedPiece() { return capturedPiece; }
     public double getScore() { return score; }
     public void setScore(double score) { this.score = score; }
+
+    public void setCapturedPiece(Piece capturedPiece) { this.capturedPiece = capturedPiece; }
 
     /**
      * Convert move to UCI notation (Universal Chess Notation)

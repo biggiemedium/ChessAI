@@ -1,5 +1,6 @@
 package dev.chess.cheat.Simulation;
 
+import dev.chess.cheat.Engine.Move;
 import dev.chess.cheat.Simulation.Impl.*;
 
 /**
@@ -57,6 +58,18 @@ public class Board {
         if (isValidPosition(row, col)) {
             pieces[row][col] = piece;
         }
+    }
+
+    public void movePiece(Move move) {
+        Piece moving = getPiece(move.getFromRow(), move.getFromCol());
+        setPiece(move.getToRow(), move.getToCol(), moving);
+        setPiece(move.getFromRow(), move.getFromCol(), null);
+    }
+
+    public void undoMove(Move move) {
+        Piece moving = getPiece(move.getToRow(), move.getToCol());
+        setPiece(move.getFromRow(), move.getFromCol(), moving);
+        setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
     }
 
     public boolean movePiece(int fromRow, int fromCol, int toRow, int toCol) {

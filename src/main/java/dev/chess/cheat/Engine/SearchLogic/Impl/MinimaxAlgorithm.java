@@ -11,7 +11,6 @@ import java.util.List;
 /**
  * Basic Minimax algorithm without pruning
  *
- * Good for learning -> *slow for deep searches*
  */
 public class MinimaxAlgorithm extends Algorithm {
 
@@ -22,8 +21,8 @@ public class MinimaxAlgorithm extends Algorithm {
     @Override
     public Move findBestMove(Board board, boolean isWhite, int depth) {
         resetNodeCounter();
-        List<Move> moves = moveGenerator.generateAllMoves(board, isWhite);
 
+        List<Move> moves = moveGenerator.generateAllMoves(board, isWhite);
         if (moves.isEmpty()) {
             return null;
         }
@@ -31,11 +30,30 @@ public class MinimaxAlgorithm extends Algorithm {
         Move bestMove = null;
         double bestScore = isWhite ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
 
-        // TODO: For each move
-        // TODO: Make the move
-        // TODO: Evaluate with minimax
-        // TODO: Undo the move
-        // TODO: Track best move
+        for(Move move : moves) {
+            board.movePiece(move);
+
+            double score = minimax(
+                    board,
+                    depth - 1,
+                    !isWhite
+            );
+
+            board.undoMove(move);
+
+            if (isWhite) {
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            } else {
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+        }
+
 
         return bestMove;
     }
@@ -43,19 +61,52 @@ public class MinimaxAlgorithm extends Algorithm {
     /**
      * Recursive minimax search
      */
-    private double minimax(Board board, int depth, boolean isMaximizing) {
+    private double minimax(Board board, int depth, boolean isWhiteTurn) {
         nodesSearched++;
 
-        // TODO: Base case - evaluate position at depth 0
+        if (depth == 0) {
+            return evaluator.evaluate(board);
+        }
 
-        // TODO: Maximizing player (white)
-        // TODO: Minimizing player (black)
+        List<Move> moves = moveGenerator.generateAllMoves(board, isWhiteTurn);
+        if (moves.isEmpty()) {
+            if (moveGenerator.isKingInCheck(board, isWhiteTurn)) {
+                // Checkmate
+                return isWhiteTurn ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+            }
+            // Stalemate
+            return 0;
+        }
 
-        return 0;
+        double bestScore = isWhiteTurn ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+
+        for(Move move : moves) {
+
+            board.movePiece(move);
+            double score = minimax(
+                    board,
+                    depth - 1,
+                    !isWhiteTurn
+            );
+            board.undoMove(move);
+
+            if (isWhiteTurn) {
+                bestScore = Math.max(bestScore, score);
+            } else {
+                bestScore = Math.min(bestScore, score);
+            }
+
+        }
+        return bestScore;
     }
 
     @Override
     public String getName() {
         return "Minimax";
+    }
+
+
+    private class GameTree {
+
     }
 }
