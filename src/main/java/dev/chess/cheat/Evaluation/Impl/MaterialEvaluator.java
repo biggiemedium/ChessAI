@@ -1,8 +1,15 @@
-package dev.chess.cheat.Evaluation;
+package dev.chess.cheat.Evaluation.Impl;
 
+import dev.chess.cheat.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Piece;
 
+/**
+ * Chess piece values indicate the value of the different chess pieces and how they relate to each other.
+ * Every piece has different strengths and weaknesses, so they are valued differently
+ *
+ * https://www.chess.com/terms/chess-piece-value
+ */
 public class MaterialEvaluator implements Evaluator {
 
     // Standard piece values (centipawns)
@@ -17,9 +24,15 @@ public class MaterialEvaluator implements Evaluator {
     public double evaluate(Board board) {
         double score = 0;
 
-        // TODO: Loop through all squares on the board
-        // TODO: For each piece, add its value if white, subtract if black
-        // TODO: Use getPieceValue() helper method
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = board.getPiece(row, col);
+                if (piece == null) continue;
+
+                double value = getPieceValue(piece);
+                score += piece.isWhite() ? value : -value;
+            }
+        }
 
         return score;
     }

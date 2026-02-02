@@ -1,4 +1,4 @@
-package dev.chess.cheat.Evaluation;
+package dev.chess.cheat.Evaluation.Impl;
 
 /**
  * Piece-Square Tables for positional evaluation

@@ -58,10 +58,4 @@ public class MinimaxAlgorithm extends Algorithm {
     public String getName() {
         return "Minimax";
     }
-
-    @Override
-    public String getDescription() {
-        return "Basic minimax algorithm. Explores all possibilities but can be slow.";
-    }
-
 }

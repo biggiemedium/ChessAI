@@ -9,17 +9,13 @@ import java.util.List;
 public class ChessEngine {
 
     private Algorithm currentAlgorithm;
-    private final Evaluator evaluator;
-    private final MoveGenerator moveGenerator;
 
-    public ChessEngine(Evaluator evaluator, MoveGenerator moveGenerator, Algorithm algorithm) {
-        this.evaluator = evaluator;
-        this.moveGenerator = moveGenerator;
+    public ChessEngine(Algorithm algorithm) {
         this.currentAlgorithm = algorithm;
     }
 
     /**
-     * Find the best move using the current algorithm
+     * Find the best move using the current algorithm.
      */
     public Move findBestMove(Board board, boolean isWhite, int depth) {
         long startTime = System.currentTimeMillis();
@@ -27,36 +23,26 @@ public class ChessEngine {
         Move bestMove = currentAlgorithm.findBestMove(board, isWhite, depth);
 
         long endTime = System.currentTimeMillis();
-        long timeElapsed = endTime - startTime;
+        long elapsed = endTime - startTime;
 
         System.out.println("Algorithm: " + currentAlgorithm.getName());
         System.out.println("Nodes searched: " + currentAlgorithm.getNodesSearched());
-        System.out.println("Time: " + timeElapsed + "ms");
-        System.out.println("Nodes/sec: " + (currentAlgorithm.getNodesSearched() * 1000 / Math.max(timeElapsed, 1)));
+        System.out.println("Time: " + elapsed + "ms");
+        System.out.println("Nodes/sec: " +
+                (currentAlgorithm.getNodesSearched() * 1000 / Math.max(elapsed, 1)));
 
         return bestMove;
     }
 
     /**
-     * Change the search algorithm
+     * Swap the search algorithm.
      */
     public void setAlgorithm(Algorithm algorithm) {
         this.currentAlgorithm = algorithm;
     }
 
-    /**
-     * Get the current algorithm
-     */
     public Algorithm getCurrentAlgorithm() {
         return currentAlgorithm;
-    }
-
-    public Evaluator getEvaluator() {
-        return evaluator;
-    }
-
-    public MoveGenerator getMoveGenerator() {
-        return moveGenerator;
     }
 
 }

@@ -32,11 +32,6 @@ public abstract class Algorithm {
     public abstract String getName();
 
     /**
-     * Get a description of how this algorithm works
-     */
-    public abstract String getDescription();
-
-    /**
      * Get the number of nodes searched in the last search
      */
     public int getNodesSearched() {

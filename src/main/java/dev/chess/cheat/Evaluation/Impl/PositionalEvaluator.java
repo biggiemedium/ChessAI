@@ -1,5 +1,6 @@
-package dev.chess.cheat.Evaluation;
+package dev.chess.cheat.Evaluation.Impl;
 
+import dev.chess.cheat.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 
 public class PositionalEvaluator implements Evaluator {

@@ -48,30 +48,9 @@ public class Move {
         return "" + fromFile + fromRank + toFile + toRank;
     }
 
-    /**
-     * Convert move to algebraic notation (e.g., "Nf3")
-     */
-    public String toAlgebraic() {
-        // TODO: Implement algebraic notation conversion
-        return toUCI();
-    }
-
     @Override
     public String toString() {
         return toUCI() + (capturedPiece != null ? " (capture)" : "");
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Move)) return false;
-        Move move = (Move) o;
-        return fromRow == move.fromRow && fromCol == move.fromCol &&
-                toRow == move.toRow && toCol == move.toCol;
-    }
-
-    @Override
-    public int hashCode() {
-        return fromRow * 1000 + fromCol * 100 + toRow * 10 + toCol;
-    }
 }
