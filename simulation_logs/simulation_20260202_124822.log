@@ -1,0 +1,63 @@
+================================================================================
+SIMULATION: Minimax (depth 3) vs Minimax (depth 3)
+Games: 1 | Time: 2026-02-02T12:48:22.232387200
+================================================================================
+
+Game 1 | DRAW
+Moves: 43 | Time: 665ms | Nodes: 940076
+  1. a2a4 | 30ms | 9322 nodes | 1229KB
+  2. b8a6 | 17ms | 9769 nodes | 1050KB
+  3. a4a5 | 8ms | 10267 nodes | 1270KB
+  4. c7c6 | 7ms | 9895 nodes | 1228KB
+  5. b2b3 | 16ms | 12048 nodes | 1640KB
+  6. a8b8 | 9ms | 13503 nodes | 1231KB
+  7. c1b2 | 8ms | 12335 nodes | 1130KB
+  8. b8a8 | 10ms | 16052 nodes | 1464KB
+  9. b2e5 | 12ms | 19057 nodes | 1745KB
+  10. g8h6 | 11ms | 17193 nodes | 1843KB
+  11. e5d4 | 14ms | 21982 nodes | 1950KB
+  12. d8c7 | 11ms | 17575 nodes | 1540KB
+  13. d4c3 | 17ms | 25230 nodes | 2359KB
+  14. a8b8 | 15ms | 21968 nodes | 1949KB
+  15. b3b4 | 12ms | 17656 nodes | 1638KB
+  16. b8a8 | 12ms | 18791 nodes | 1745KB
+  17. d2d3 | 12ms | 17750 nodes | 1540KB
+  18. a8b8 | 14ms | 23681 nodes | 2154KB
+  19. e2e4 | 13ms | 20186 nodes | 1843KB
+  20. b8a8 | 21ms | 25898 nodes | -54823KB
+  21. f2f3 | 20ms | 31168 nodes | 2680KB
+  22. a8b8 | 15ms | 24497 nodes | 2456KB
+  23. d3d4 | 15ms | 22111 nodes | 1834KB
+  24. b7b5 | 14ms | 22823 nodes | 2047KB
+  25. e4e5 | 15ms | 22462 nodes | 2241KB
+  26. b8a8 | 11ms | 18355 nodes | 1628KB
+  27. c3d2 | 18ms | 19928 nodes | 2034KB
+  28. h6g8 | 12ms | 20101 nodes | 1626KB
+  29. f3f4 | 28ms | 24307 nodes | 2456KB
+  30. a8b8 | 13ms | 20627 nodes | 1999KB
+  31. f4f5 | 17ms | 25948 nodes | 2241KB
+  32. b8a8 | 13ms | 21063 nodes | 2048KB
+  33. c2c3 | 19ms | 29665 nodes | 2648KB
+  34. a8b8 | 14ms | 20917 nodes | 1835KB
+  35. d2g5 | 18ms | 29364 nodes | 2454KB
+  36. b8a8 | 15ms | 23516 nodes | 2241KB
+  37. g5f4 | 24ms | 38875 nodes | 3267KB
+  38. a8b8 | 15ms | 23945 nodes | 2648KB
+  39. f4g5 | 23ms | 36955 nodes | 3070KB
+  40. b8a8 | 15ms | 23516 nodes | 2047KB
+  41. g5f4 | 24ms | 38875 nodes | 3476KB
+  42. a8b8 | 15ms | 23945 nodes | 2241KB
+  43. f4g5 | 23ms | 36955 nodes | 3282KB
+
+================================================================================
+SUMMARY
+--------------------------------------------------------------------------------
+Total Games: 1
+White Wins: 0
+Black Wins: 0
+Draws: 1
+Total Nodes: 940076
+Avg Nodes/Game: 940076
+Avg Time/Game: 665ms
+Avg Memory/Game: 3477KB
+================================================================================

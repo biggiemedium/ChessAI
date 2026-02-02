@@ -29,15 +29,7 @@ public class Main extends Application {
     }
 
     private void showSimulationUI() {
-        MaterialEvaluator evaluator = new MaterialEvaluator();
-        MoveGenerator moveGen = new MoveGenerator();
-
-        MinimaxAlgorithm white = new MinimaxAlgorithm(evaluator, moveGen);
-        MinimaxAlgorithm black = new MinimaxAlgorithm(evaluator, moveGen);
-
         SimulationUI ui = new SimulationUI(primaryStage);
-        ui.setAlgorithms(white, black);
-
         primaryStage.setScene(ui.createScene());
     }
 

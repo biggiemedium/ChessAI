@@ -1,6 +1,9 @@
 package dev.chess.cheat.UI;
 
+import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Engine.SearchLogic.Algorithm;
+import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
+import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
 import dev.chess.cheat.Simulation.Runner.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -14,6 +17,10 @@ import javafx.stage.Stage;
 
 public class SimulationUI {
     private final Stage stage;
+    private final AlgorithmFactory algorithmFactory;
+    private final MaterialEvaluator evaluator;
+    private final MoveGenerator moveGenerator;
+
     private Algorithm whiteAlgorithm;
     private Algorithm blackAlgorithm;
 
@@ -22,6 +29,8 @@ public class SimulationUI {
     private ProgressBar progressBar;
     private Button startButton;
 
+    private ComboBox<String> whiteAlgorithmCombo;
+    private ComboBox<String> blackAlgorithmCombo;
     private Spinner<Integer> whiteDepthSpinner;
     private Spinner<Integer> blackDepthSpinner;
     private Spinner<Integer> maxMovesSpinner;
@@ -35,11 +44,9 @@ public class SimulationUI {
     public SimulationUI(Stage stage) {
         this.stage = stage;
         this.boardViewer = new BoardViewer();
-    }
-
-    public void setAlgorithms(Algorithm white, Algorithm black) {
-        this.whiteAlgorithm = white;
-        this.blackAlgorithm = black;
+        this.algorithmFactory = new AlgorithmFactory();
+        this.evaluator = new MaterialEvaluator();
+        this.moveGenerator = new MoveGenerator();
     }
 
     public Scene createScene() {
@@ -51,7 +58,7 @@ public class SimulationUI {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 24));
         title.setStyle("-fx-text-fill: #ffffff;");
 
-        HBox algorithmBox = createAlgorithmDisplay();
+        GridPane algorithmSelector = createAlgorithmSelector();
         GridPane settingsGrid = createSettingsGrid();
         HBox controlBox = createControlBox();
 
@@ -69,29 +76,43 @@ public class SimulationUI {
 
         VBox.setVgrow(resultsArea, Priority.ALWAYS);
 
-        root.getChildren().addAll(title, algorithmBox, settingsGrid, controlBox,
+        root.getChildren().addAll(title, algorithmSelector, settingsGrid, controlBox,
                 progressBar, statusLabel, resultsArea);
 
-        return new Scene(root, 750, 720);
+        return new Scene(root, 750, 750);
     }
 
-    private HBox createAlgorithmDisplay() {
-        HBox box = new HBox(20);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(10));
-        box.setStyle("-fx-background-color: #3a3a3a; -fx-background-radius: 5;");
+    private GridPane createAlgorithmSelector() {
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+        grid.setStyle("-fx-background-color: #3a3a3a; -fx-background-radius: 5;");
 
-        Label whiteLabel = new Label("White: " + (whiteAlgorithm != null ? whiteAlgorithm.getName() : "None"));
-        whiteLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px;");
+        Label whiteLabel = createLabel("White Algorithm:");
+        whiteAlgorithmCombo = new ComboBox<>();
+        whiteAlgorithmCombo.getItems().addAll(algorithmFactory.getAlgorithmNames());
+        whiteAlgorithmCombo.setValue(algorithmFactory.getAlgorithmNames().get(0));
+        whiteAlgorithmCombo.setPrefWidth(200);
+        whiteAlgorithmCombo.setStyle("-fx-font-size: 12px;");
+
+        Label blackLabel = createLabel("Black Algorithm:");
+        blackAlgorithmCombo = new ComboBox<>();
+        blackAlgorithmCombo.getItems().addAll(algorithmFactory.getAlgorithmNames());
+        blackAlgorithmCombo.setValue(algorithmFactory.getAlgorithmNames().get(0));
+        blackAlgorithmCombo.setPrefWidth(200);
+        blackAlgorithmCombo.setStyle("-fx-font-size: 12px;");
 
         Label vs = new Label("VS");
-        vs.setStyle("-fx-text-fill: #ff6b6b; -fx-font-weight: bold; -fx-font-size: 16px;");
+        vs.setStyle("-fx-text-fill: #ff6b6b; -fx-font-weight: bold; -fx-font-size: 18px;");
 
-        Label blackLabel = new Label("Black: " + (blackAlgorithm != null ? blackAlgorithm.getName() : "None"));
-        blackLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px;");
+        grid.add(whiteLabel, 0, 0);
+        grid.add(whiteAlgorithmCombo, 1, 0);
+        grid.add(vs, 2, 0);
+        grid.add(blackLabel, 3, 0);
+        grid.add(blackAlgorithmCombo, 4, 0);
 
-        box.getChildren().addAll(whiteLabel, vs, blackLabel);
-        return box;
+        return grid;
     }
 
     private GridPane createSettingsGrid() {
@@ -186,10 +207,16 @@ public class SimulationUI {
     }
 
     private void runSimulation() {
-        if (whiteAlgorithm == null || blackAlgorithm == null) {
-            showAlert("Error", "Algorithms not set!");
+        String whiteAlgoName = whiteAlgorithmCombo.getValue();
+        String blackAlgoName = blackAlgorithmCombo.getValue();
+
+        if (whiteAlgoName == null || blackAlgoName == null) {
+            showAlert("Error", "Please select algorithms for both players!");
             return;
         }
+
+        whiteAlgorithm = algorithmFactory.createAlgorithm(whiteAlgoName, evaluator, moveGenerator);
+        blackAlgorithm = algorithmFactory.createAlgorithm(blackAlgoName, evaluator, moveGenerator);
 
         int whiteDepth = whiteDepthSpinner.getValue();
         int blackDepth = blackDepthSpinner.getValue();
@@ -209,7 +236,7 @@ public class SimulationUI {
         new Thread(() -> {
             try {
                 Platform.runLater(() -> {
-                    statusLabel.setText("Running game...");
+                    statusLabel.setText("Running game: " + whiteAlgoName + " vs " + blackAlgoName);
                     progressBar.setProgress(0.5);
                 });
 
@@ -227,6 +254,8 @@ public class SimulationUI {
                     resultsArea.appendText("=".repeat(70) + "\n");
                     resultsArea.appendText("GAME COMPLETE\n");
                     resultsArea.appendText("=".repeat(70) + "\n");
+                    resultsArea.appendText(String.format("White: %s (depth %d)\n", whiteAlgoName, whiteDepth));
+                    resultsArea.appendText(String.format("Black: %s (depth %d)\n", blackAlgoName, blackDepth));
                     resultsArea.appendText(String.format("Result: %s\n", game.outcome));
                     resultsArea.appendText(String.format("Total Moves: %d\n", game.moves.size()));
                     resultsArea.appendText(String.format("Total Time: %dms\n", game.totalTimeMs));

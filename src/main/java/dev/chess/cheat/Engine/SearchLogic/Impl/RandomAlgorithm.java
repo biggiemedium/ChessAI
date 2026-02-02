@@ -1,0 +1,37 @@
+package dev.chess.cheat.Engine.SearchLogic.Impl;
+
+import dev.chess.cheat.Engine.Move;
+import dev.chess.cheat.Engine.MoveGenerator;
+import dev.chess.cheat.Engine.SearchLogic.Algorithm;
+import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Simulation.Board;
+
+import java.util.List;
+import java.util.Random;
+
+public class RandomAlgorithm extends Algorithm {
+
+    private final Random random = new Random();
+
+    public RandomAlgorithm(Evaluator evaluator, MoveGenerator moveGenerator) {
+        super(evaluator, moveGenerator);
+    }
+
+    @Override
+    public Move findBestMove(Board board, boolean isWhite, int depth) {
+        resetNodeCounter();
+
+        List<Move> moves = moveGenerator.generateAllMoves(board, isWhite);
+        if (moves.isEmpty()) {
+            return null;
+        }
+
+        nodesSearched = moves.size();
+        return moves.get(random.nextInt(moves.size()));
+    }
+
+    @Override
+    public String getName() {
+        return "Random";
+    }
+}
