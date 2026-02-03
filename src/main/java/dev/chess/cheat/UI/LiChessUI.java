@@ -68,7 +68,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         this.connectionStatus = new Label("Disconnected");
         this.connectionStatus.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
 
-        // Display our username if were connected -> else: don't display
         this.usernameDisplay = new Label("");
         this.usernameDisplay.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
         this.usernameDisplay.setVisible(false);
@@ -85,26 +84,105 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         root.setRight(consoleWrapper);
 
         // Connect state
-        this.token = new TextField("");
+        Label tokenLabel = new Label("Enter your LiChess Token:");
+        tokenLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+        this.token = new TextField();
+        token.setStyle(
+                "-fx-background-radius: 6;" +
+                        "-fx-border-radius: 6;" +
+                        "-fx-border-color: #4a90e2;" +
+                        "-fx-border-width: 1;" +
+                        "-fx-padding: 6 8;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-background-color: #1e1e1e;"
+        );
 
         this.connectButton = new Button("Connect");
+        connectButton.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        );
+
+        // Hover FX
+        connectButton.setOnMouseEntered(e -> connectButton.setStyle(
+                "-fx-background-color: #357ABD;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
+
+        connectButton.setOnMouseExited(e -> connectButton.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
         this.connectButton.setOnAction(actionEvent -> connect(token.getText()));
 
-        centerBox = new VBox(10); // store it in the field
-        centerBox.setPadding(new Insets(20));
+        centerBox = new VBox(10);
         centerBox.setAlignment(Pos.CENTER);
-        centerBox.getChildren().addAll(new Label("Enter your LiChess Token:"), token, connectButton);
-        root.setLeft(centerBox); // keep it in the scene
+        centerBox.getChildren().addAll(tokenLabel, token, connectButton);
 
-        // Game state
-        this.connectionButton = new Button("Queue"); // queue for game against AI or player
+        // Game box (queue button)
+        this.connectionButton = new Button("Queue"); // Queue for game against AI or player
+        connectionButton.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        );
+
+        // Hover FX
+        connectionButton.setOnMouseEntered(e -> connectionButton.setStyle(
+                "-fx-background-color: #357ABD;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
+        connectionButton.setOnMouseExited(e -> connectionButton.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
 
         gameBox = new VBox(10);
-        centerBox.setPadding(new Insets(20));
-        centerBox.setAlignment(Pos.CENTER);
-        centerBox.getChildren().addAll(connectionButton);
+        gameBox.setAlignment(Pos.CENTER);
+        gameBox.getChildren().add(connectionButton);
 
-        root.setLeft(gameBox);
+        centerBox.setVisible(true);
+        centerBox.setManaged(true);
+        gameBox.setVisible(false);
+        gameBox.setManaged(false);
+
+        VBox centerWrapper = new VBox();
+        centerWrapper.setAlignment(Pos.CENTER);
+        centerWrapper.setSpacing(10);
+        centerWrapper.setPadding(new Insets(20));
+        centerWrapper.getChildren().addAll(centerBox, gameBox);
+
+        root.setLeft(centerWrapper);
 
         root.setStyle("-fx-background-color: #282424;");
         return new Scene(root, 900, 500);
@@ -139,7 +217,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
                     centerBox.setVisible(false);
                     centerBox.setManaged(false);
-
                     gameBox.setVisible(true);
                     gameBox.setManaged(true);
                 } else {
@@ -157,6 +234,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         }).start();
 
     }
+
 
     @Override
     public void onGameStart(String gameId, JsonObject gameData) {
