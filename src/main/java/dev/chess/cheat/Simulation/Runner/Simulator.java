@@ -2,8 +2,7 @@ package dev.chess.cheat.Simulation.Runner;
 
 import dev.chess.cheat.Engine.Move;
 import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Simulation.Game;
-import dev.chess.cheat.UI.BoardViewer;
+import dev.chess.cheat.UI.Viewer.BoardViewer;
 
 public class Simulator {
 
@@ -87,7 +86,7 @@ public class Simulator {
     }
 
     private GameStats playGame(Algorithm white, Algorithm black, int whiteDepth, int blackDepth, int gameNum) {
-        Game game = new Game();
+        GameRunner game = new GameRunner();
         game.setEngines(white, black);
         GameStats stats = new GameStats(gameNum);
 

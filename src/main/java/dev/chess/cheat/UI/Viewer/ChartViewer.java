@@ -1,4 +1,4 @@
-package dev.chess.cheat.UI;
+package dev.chess.cheat.UI.Viewer;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;

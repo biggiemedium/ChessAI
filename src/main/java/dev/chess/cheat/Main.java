@@ -1,14 +1,11 @@
 package dev.chess.cheat;
 
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Impl.MinimaxAlgorithm;
-import dev.chess.cheat.Evaluation.Evaluator;
-import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
-import dev.chess.cheat.UI.SimulationUI;
+import dev.chess.cheat.UI.Development.SimulationUI;
+import dev.chess.cheat.UI.LiChessUI;
+import dev.chess.cheat.UI.TitleScreenUI;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 
 /**
  * Chess.com uses an anticheat engine that checks things such as winstreak, ratio, etc
@@ -30,8 +27,19 @@ public class Main extends Application {
             System.exit(0);
         });
 
-        showSimulationUI();
+        //showSimulationUI();
+        showLiChessUI();
         primaryStage.show();
+    }
+
+    private void showLiChessUI() {
+        LiChessUI ui = new LiChessUI(primaryStage);
+        primaryStage.setScene(ui.createScene());
+    }
+
+    private void setTitleScreenUI() {
+        TitleScreenUI ui = new TitleScreenUI(primaryStage);
+        primaryStage.setScene(ui.createScene());
     }
 
     private void showSimulationUI() {

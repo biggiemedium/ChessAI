@@ -1,26 +1,26 @@
-package dev.chess.cheat.UI;
+package dev.chess.cheat.UI.Development;
 
 import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Engine.SearchLogic.Algorithm;
 import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
 import dev.chess.cheat.Evaluation.Evaluator;
-import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
 import dev.chess.cheat.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Simulation.Runner.*;
+import dev.chess.cheat.UI.Viewer.AnalyticsViewer;
+import dev.chess.cheat.UI.Viewer.BoardViewer;
+import dev.chess.cheat.UI.Viewer.ChartViewer;
+import dev.chess.cheat.Util.Interface.SceneMaker;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.chart.LineChart;
-import javafx.scene.chart.NumberAxis;
-import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
-public class SimulationUI {
+public class SimulationUI implements SceneMaker {
     private final Stage stage;
     private final AlgorithmFactory algorithmFactory;
     private final Evaluator evaluator;

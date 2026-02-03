@@ -1,4 +1,4 @@
-package dev.chess.cheat.UI;
+package dev.chess.cheat.UI.Viewer;
 
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Piece;
