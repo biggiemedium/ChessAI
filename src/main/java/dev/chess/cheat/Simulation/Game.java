@@ -12,19 +12,22 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class Game {
 
     private final Board board;
+    private final ChessEngine AI;
+    private final ChessClient client;
+
+    // Game state
+    private String gameId;
     private boolean isWhiteTurn;
     private GameStatus status;
+
+    // Move tracking
     private final List<Move> moveHistory;
-    private final ChessEngine AI;
+    private final List<Character> promotions; // Tracks which moves were promotions
 
-    // Connection
-    private final ChessClient client;
-    private String gameId;
-
+    // Event listeners for UI updates
     private final List<GameUpdateListener> listeners;
 
-    // im going to kill myself
-    private final List<Character> promotions;
+    // ========== Constructor ==========
 
     public Game(Board board, List<Move> moveHistory, ChessEngine ai, ChessClient client) {
         this.board = board;
@@ -37,170 +40,171 @@ public class Game {
         this.promotions = new ArrayList<>();
     }
 
+    // ========== Game State Management ==========
+
     /**
-     * Update game state from array of UCI moves
-     * @param uciMoves array of moves in UCI notation (e.g., "e2e4", "e7e8q")
+     * Reset game to starting position
      */
-    public void updateFromMoves(String[] uciMoves) {
-        // Reset board to starting position
+    public void reset() {
         board.reset();
         moveHistory.clear();
         promotions.clear();
         isWhiteTurn = true;
+        status = GameStatus.IN_PROGRESS;
+        notifyListeners();
+    }
 
-        // Apply each move sequentially
-        for (String uciMove : uciMoves) {
-            UCIMove parsedMove = parseUCIMove(uciMove);
-            if (parsedMove != null) {
-                applyMove(parsedMove);
-            }
+    /**
+     * Update entire game state from UCI move list (from LiChess)
+     * This replays all moves from the starting position
+     */
+    public void updateFromMoves(String[] uciMoves) {
+        reset();
+
+        // Replay each move
+        for (String uci : uciMoves) {
+            applyUCIMove(uci);
         }
 
         notifyListeners();
     }
 
     /**
-     * Apply a UCI move to the board
+     * Update game status based on LiChess status and winner
      */
-    private void applyMove(UCIMove uciMove) {
-        // Get the piece being moved
-        Piece piece = board.getPiece(uciMove.fromRow, uciMove.fromCol);
-        if (piece == null) {
-            System.err.println("No piece at source position");
+    public void updateStatus(String lichessStatus, String winner) {
+        this.status = convertLiChessStatus(lichessStatus, winner);
+        notifyListeners();
+    }
+
+    // ========== Move Handling ==========
+
+    /**
+     * Parse and apply a single UCI move (e.g., "e2e4" or "e7e8q")
+     */
+    private void applyUCIMove(String uci) {
+        if (uci == null || uci.length() < 4) {
+            System.err.println("Invalid UCI move: " + uci);
             return;
         }
 
-        // Store the captured piece
-        Piece captured = board.getPiece(uciMove.toRow, uciMove.toCol);
+        try {
+            // Parse UCI notation
+            int fromCol = uci.charAt(0) - 'a';           // a-h -> 0-7
+            int fromRow = 8 - (uci.charAt(1) - '0');     // 1-8 -> 7-0 (array indexing)
+            int toCol = uci.charAt(2) - 'a';
+            int toRow = 8 - (uci.charAt(3) - '0');
 
-        // Create Move object
-        Move move = new Move(uciMove.fromRow, uciMove.fromCol, uciMove.toRow, uciMove.toCol, captured);
+            // Check for promotion (5th character)
+            Character promotion = (uci.length() == 5) ?
+                    Character.toUpperCase(uci.charAt(4)) : null;
 
-        // Make the move on the board
+            // Execute the move
+            executeMove(fromRow, fromCol, toRow, toCol, promotion);
+
+        } catch (Exception e) {
+            System.err.println("Error parsing UCI move: " + uci);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Execute a move on the board
+     */
+    private void executeMove(int fromRow, int fromCol, int toRow, int toCol, Character promotion) {
+        // Get the piece being moved
+        Piece piece = board.getPiece(fromRow, fromCol);
+        if (piece == null) {
+            System.err.println("No piece at " + (char)('a' + fromCol) + (8 - fromRow));
+            return;
+        }
+
+        // Capture piece at destination (if any)
+        Piece captured = board.getPiece(toRow, toCol);
+
+        // Create and execute move
+        Move move = new Move(fromRow, fromCol, toRow, toCol, captured);
         board.movePiece(move);
 
         // Handle pawn promotion
-        if (uciMove.promotion != null) {
-            handlePromotion(uciMove.toRow, uciMove.toCol, uciMove.promotion, piece.isWhite());
-            promotions.add(uciMove.promotion);
+        if (promotion != null) {
+            promotePawn(toRow, toCol, promotion, piece.isWhite());
+            promotions.add(promotion);
         } else {
             promotions.add(null);
         }
 
-        // Add to history and toggle turn
+        // Update state
         moveHistory.add(move);
         isWhiteTurn = !isWhiteTurn;
     }
 
     /**
-     * Handle pawn promotion by replacing the piece
+     * Promote a pawn to the specified piece
      */
-    private void handlePromotion(int row, int col, char promotionPiece, boolean isWhite) {
-        Piece promoted = null;
+    private void promotePawn(int row, int col, char promotionPiece, boolean isWhite) {
+        Piece promoted;
 
-        switch (Character.toUpperCase(promotionPiece)) {
-            case 'Q':
-                promoted = new Queen(isWhite);
-                break;
-            case 'R':
-                promoted = new Rook(isWhite);
-                break;
-            case 'B':
-                promoted = new Bishop(isWhite);
-                break;
-            case 'N':
-                promoted = new Knight(isWhite);
-                break;
+        switch (promotionPiece) {
+            case 'Q': promoted = new Queen(isWhite); break;
+            case 'R': promoted = new Rook(isWhite); break;
+            case 'B': promoted = new Bishop(isWhite); break;
+            case 'N': promoted = new Knight(isWhite); break;
             default:
-                System.err.println("Unknown promotion piece: " + promotionPiece);
+                System.err.println("Invalid promotion piece: " + promotionPiece);
                 return;
         }
 
         board.setPiece(row, col, promoted);
     }
 
+    // ========== Status Conversion ==========
 
     /**
-     * Parse UCI move notation
-     * UCI format: e2e4, e7e5, e1g1 (castling), e7e8q (promotion)
+     * Convert LiChess status string to GameStatus enum
      */
-    private UCIMove parseUCIMove(String uci) {
-        if (uci == null || uci.length() < 4) {
-            return null;
-        }
-
-        try {
-            // Parse source square
-            int fromCol = uci.charAt(0) - 'a';  // a-h -> 0-7
-            int fromRow = 8 - (uci.charAt(1) - '0');  // 1-8 -> 7-0 (inverted for array indexing)
-
-            // Parse destination square
-            int toCol = uci.charAt(2) - 'a';
-            int toRow = 8 - (uci.charAt(3) - '0');
-
-            // Handle promotion
-            Character promotion = null;
-            if (uci.length() == 5) {
-                promotion = Character.toUpperCase(uci.charAt(4));
-            }
-
-            return new UCIMove(fromRow, fromCol, toRow, toCol, promotion);
-        } catch (Exception e) {
-            System.err.println("Error parsing UCI move: " + uci);
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * Update game status from LiChess status string
-     * @param lichessStatus the status from LiChess API
-     * @param winner "white", "black", or null
-     */
-    public void updateStatus(String lichessStatus, String winner) {
+    private GameStatus convertLiChessStatus(String lichessStatus, String winner) {
         switch (lichessStatus) {
             case "started":
             case "created":
-                this.status = GameStatus.IN_PROGRESS;
-                break;
+                return GameStatus.IN_PROGRESS;
+
             case "mate":
-                // Determine winner
-                if ("white".equals(winner)) {
-                    this.status = GameStatus.WHITE_WINS;
-                } else if ("black".equals(winner)) {
-                    this.status = GameStatus.BLACK_WINS;
-                } else {
-                    this.status = GameStatus.IN_PROGRESS;
-                }
-                break;
+                return getWinnerStatus(winner);
+
             case "resign":
             case "timeout":
             case "outoftime":
-                // Winner decided by resignation or timeout
-                if ("white".equals(winner)) {
-                    this.status = GameStatus.WHITE_WINS;
-                } else if ("black".equals(winner)) {
-                    this.status = GameStatus.BLACK_WINS;
-                } else {
-                    this.status = GameStatus.DRAW;
-                }
-                break;
+                return winner != null ? getWinnerStatus(winner) : GameStatus.DRAW;
+
             case "stalemate":
-                this.status = GameStatus.STALEMATE;
-                break;
+                return GameStatus.STALEMATE;
+
             case "draw":
             case "aborted":
-                this.status = GameStatus.DRAW;
-                break;
-            default:
-                this.status = GameStatus.IN_PROGRESS;
-        }
+                return GameStatus.DRAW;
 
-        notifyListeners();
+            default:
+                return GameStatus.IN_PROGRESS;
+        }
     }
 
     /**
-     * Add a listener for game updates (for JavaFX UI)
+     * Get game status based on winner
+     */
+    private GameStatus getWinnerStatus(String winner) {
+        if ("white".equals(winner)) {
+            return GameStatus.WHITE_WINS;
+        } else if ("black".equals(winner)) {
+            return GameStatus.BLACK_WINS;
+        }
+        return GameStatus.DRAW;
+    }
+
+    // ========== Event Listeners ==========
+
+    /**
+     * Add a listener for game state changes (for UI updates)
      */
     public void addUpdateListener(GameUpdateListener listener) {
         listeners.add(listener);
@@ -214,7 +218,7 @@ public class Game {
     }
 
     /**
-     * Notify all listeners of game update
+     * Notify all listeners that game state has changed
      */
     private void notifyListeners() {
         for (GameUpdateListener listener : listeners) {
@@ -222,37 +226,20 @@ public class Game {
         }
     }
 
+    // ========== Chat Handling ==========
 
-    public void reset() {
-        board.reset();
-        moveHistory.clear();
-        isWhiteTurn = true;
-        status = GameStatus.IN_PROGRESS;
+    /**
+     * Handle incoming chat message from LiChess
+     * Can be overridden or extended for custom behavior
+     */
+    public void onChatMessage(String username, String text, String room) {
+        System.out.println("[" + room + "] " + username + ": " + text);
     }
 
+    // ========== Getters ==========
 
     public Board getBoard() {
         return board;
-    }
-
-    public boolean isWhiteTurn() {
-        return isWhiteTurn;
-    }
-
-    public void setWhiteTurn(boolean whiteTurn) {
-        isWhiteTurn = whiteTurn;
-    }
-
-    public GameStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(GameStatus status) {
-        this.status = status;
-    }
-
-    public List<Move> getMoveHistory() {
-        return moveHistory;
     }
 
     public ChessEngine getAI() {
@@ -271,31 +258,35 @@ public class Game {
         this.gameId = gameId;
     }
 
-    public List<GameUpdateListener> getListeners() {
-        return listeners;
+    public boolean isWhiteTurn() {
+        return isWhiteTurn;
     }
 
-    /**
-     * Helper class to store UCI move data including promotion
-     */
-    private static class UCIMove {
-        final int fromRow;
-        final int fromCol;
-        final int toRow;
-        final int toCol;
-        final Character promotion;
-
-        UCIMove(int fromRow, int fromCol, int toRow, int toCol, Character promotion) {
-            this.fromRow = fromRow;
-            this.fromCol = fromCol;
-            this.toRow = toRow;
-            this.toCol = toCol;
-            this.promotion = promotion;
-        }
+    public GameStatus getStatus() {
+        return status;
     }
 
+    public List<Move> getMoveHistory() {
+        return new ArrayList<>(moveHistory);
+    }
+
+    public List<Character> getPromotions() {
+        return new ArrayList<>(promotions);
+    }
+
+    public int getMoveCount() {
+        return moveHistory.size();
+    }
+
+    public boolean isGameOver() {
+        return status != GameStatus.IN_PROGRESS;
+    }
+
+    // ========== Listener Interface ==========
+
     /**
-     * Interface for listening to game updates
+     * Listener interface for game state updates
+     * Typically implemented by UI components
      */
     public interface GameUpdateListener {
         void onGameUpdated(Game game);

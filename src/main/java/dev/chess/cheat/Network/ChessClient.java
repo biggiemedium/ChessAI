@@ -3,6 +3,8 @@ package dev.chess.cheat.Network;
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Simulation.Game;
 
+import java.util.List;
+
 public abstract class ChessClient {
 
     protected Game currentGame;
@@ -102,6 +104,7 @@ public abstract class ChessClient {
 
     /**
      * Make a move in the current game
+     *
      * @param move the move in UCI format (e.g., "e2e4")
      * @return true if move was accepted
      */
@@ -125,6 +128,10 @@ public abstract class ChessClient {
      */
     protected abstract void handleStatusChange(String status, String winner);
 
+    public abstract boolean sendMessage(String message);
+
+    public abstract List<String> getGameChat();
+
     // ========== Challenge/Game Creation ==========
 
     /**
@@ -135,6 +142,8 @@ public abstract class ChessClient {
      * @return game ID if successful, null otherwise
      */
     public abstract String challengeAI(int level, int timeMinutes, int increment);
+
+    public abstract String challengePlayer(String gameId);
 
     // ========== Utility Methods ==========
 

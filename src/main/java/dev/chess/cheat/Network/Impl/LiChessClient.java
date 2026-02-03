@@ -8,15 +8,28 @@ import dev.chess.cheat.Network.Model.OpponentStats;
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Game;
 import dev.chess.cheat.Util.Annotation.Value;
+import dev.chess.cheat.Util.Interface.ILiChessEvents;
 import dev.chess.cheat.Util.PropertyLoader;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
+/**
+ * TODO:
+ * Challenge Player -> Challenge players not just AI | /api/challenge/{username}
+ * List Challenges -> Show people who challenge you | /api/challenge | For details about challenge -> /api/challenge/{challengeId}/show
+ *
+ * BOT:
+ * Claim Vicotory if opponent disconnects | /api/bot/game/{gameId}/claim-victory
+ * Claim Draw if opponent disconnects for x time | /api/bot/game/{gameId}/claim-draw
+ * Send Chat messages | /api/bot/game/{gameId}/chat
+ * Event based system | /api/stream/event -> (GameStartEvent, GameFinishEvent, ChallengeEvent, ChallengeCancelEvent, ChallengeAcceptEvent)
+ */
 public class LiChessClient extends ChessClient {
 
     private static final String API_BASE = "https://lichess.org/api";
@@ -24,10 +37,18 @@ public class LiChessClient extends ChessClient {
     @Value(key = "LICHESS_API_KEY")
     private String oauthToken;
 
-    private ExecutorService executor;
+    private final ExecutorService executor;
     private volatile boolean streaming;
+    private volatile boolean streamingEvents;
     private final Gson gson;
+
     private OpponentStats opponentStats;
+    private final List<String> chatMessages = new CopyOnWriteArrayList<>();
+    private final List<String> formattedChatMessages = new CopyOnWriteArrayList<>();
+
+    private ILiChessEvents eventListener;
+
+    // ========== Constructors ==========
 
     public LiChessClient() {
         this.gson = new Gson();
@@ -41,14 +62,21 @@ public class LiChessClient extends ChessClient {
         this.executor = Executors.newCachedThreadPool();
     }
 
+    public void setEventListener(ILiChessEvents listener) {
+        this.eventListener = listener;
+    }
+
+    // ========== Connection Management ==========
+
     @Override
     public boolean establishConnection() {
         try {
-            JsonObject account = apiGet("/account");
+            JsonObject account = httpGet("/account");
             if (account != null) {
                 connected = true;
                 ourUsername = account.get("id").getAsString();
                 System.out.println("Connected as: " + ourUsername);
+                startGlobalEventStream();
                 return true;
             }
         } catch (Exception e) {
@@ -60,6 +88,7 @@ public class LiChessClient extends ChessClient {
     @Override
     public boolean closeConnection() {
         streaming = false;
+        streamingEvents = false;
         connected = false;
         executor.shutdown();
         resetGameState();
@@ -68,20 +97,47 @@ public class LiChessClient extends ChessClient {
     }
 
     @Override
+    protected void resetGameState() {
+        currentGame = null;
+        currentGameId = null;
+        weAreWhite = false;
+        chatMessages.clear();
+        formattedChatMessages.clear();
+    }
+
+    @Override
     public boolean isTimedOut() {
         return false;
     }
+
+    // ========== Game Actions ==========
 
     @Override
     public String challengeAI(int level, int timeMinutes, int increment) {
         try {
             String params = String.format("level=%d&clock.limit=%d&clock.increment=%d",
                     level, timeMinutes * 60, increment);
-            JsonObject result = apiPost("/challenge/ai", params);
+            JsonObject result = httpPost("/challenge/ai", params);
             if (result != null) {
                 String gameId = result.get("id").getAsString();
                 System.out.println("AI challenge created: " + gameId);
                 return gameId;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    @Override
+    public String challengePlayer(String username) {
+        try {
+            String params = "rated=false&clock.limit=300&clock.increment=0";
+            JsonObject result = httpPost("/challenge/" + username, params);
+            if (result != null) {
+                String challengeId = result.getAsJsonObject("challenge").get("id").getAsString();
+                System.out.println("Challenge sent to " + username + ": " + challengeId);
+                return challengeId;
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -98,7 +154,7 @@ public class LiChessClient extends ChessClient {
         this.currentGame.setGameId(gameId);
 
         streaming = true;
-        executor.submit(() -> streamGameState(gameId));
+        executor.submit(() -> streamGameEvents(gameId));
         return true;
     }
 
@@ -110,10 +166,16 @@ public class LiChessClient extends ChessClient {
     @Override
     public boolean makeMove(String move) {
         try {
-            HttpURLConnection conn = createConnection("/bot/game/" + currentGameId + "/move/" + move, "POST");
+            HttpURLConnection conn = httpConnection("/bot/game/" + currentGameId + "/move/" + move, "POST");
             int code = conn.getResponseCode();
-            System.out.println(code == 200 ? "✓ Move sent" : "✗ Move rejected: " + code);
-            return code == 200;
+            if (code == 200) {
+                System.out.println("Move sent: " + move);
+                return true;
+            }
+            if (code == 400) {
+                System.err.println("Invalid move: " + conn.getResponseMessage());
+            }
+            return false;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -124,7 +186,6 @@ public class LiChessClient extends ChessClient {
     public void calculateAndMakeMove() {
         try {
             System.out.println("Calculating move...");
-
             var bestMove = currentGame.getAI().findBestMove(
                     currentGame.getBoard(),
                     currentGame.isWhiteTurn(),
@@ -153,7 +214,6 @@ public class LiChessClient extends ChessClient {
     @Override
     protected void handleStatusChange(String status, String winner) {
         currentGame.updateStatus(status, winner);
-
         if ("started".equals(status) && isOurTurn()) {
             executor.submit(this::calculateAndMakeMove);
         }
@@ -168,112 +228,83 @@ public class LiChessClient extends ChessClient {
         return "" + fromFile + fromRank + toFile + toRank;
     }
 
-    // ========== Opponent Stats Methods ==========
+    // ========== Chat ==========
 
-    /**
-     * Fetch opponent stats for a given username
-     * @param opponentUsername the opponent's username
-     * @return OpponentStats object, or null if fetch failed
-     */
-    public OpponentStats fetchOpponentStats(String opponentUsername) {
+    @Override
+    public boolean sendMessage(String message) {
+        if (currentGameId == null || message == null || message.trim().isEmpty()) {
+            return false;
+        }
+
         try {
-            System.out.println("Fetching stats for: " + opponentUsername);
-            JsonObject userData = getUserData(opponentUsername);
-            if (userData == null) {
-                System.err.println("Failed to fetch user data for: " + opponentUsername);
-                return null;
+            String params = String.format("room=player&text=%s",
+                    java.net.URLEncoder.encode(message, "UTF-8"));
+            HttpURLConnection conn = httpConnection("/bot/game/" + currentGameId + "/chat", "POST");
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setDoOutput(true);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(params.getBytes("utf-8"));
             }
 
-            System.out.println("User data received: " + userData.toString());
-            this.opponentStats = parseOpponentStats(userData);
-            System.out.println("Opponent stats parsed successfully");
-            return opponentStats;
-
+            if (conn.getResponseCode() == 200) {
+                System.out.println("Chat sent: " + message);
+                return true;
+            }
         } catch (Exception e) {
-            System.err.println("Error fetching opponent stats:");
             e.printStackTrace();
-            return null;
         }
+        return false;
     }
 
-    /**
-     * Get opponent stats as a map
-     * @param opponentUsername the opponent's username
-     * @return Map containing all opponent data
-     */
-    public Map<String, Object> getOpponentStatsMap(String opponentUsername) {
-        OpponentStats stats = fetchOpponentStats(opponentUsername);
-        return stats != null ? stats.getStatsMap() : null;
+    @Override
+    public List<String> getGameChat() {
+        return new ArrayList<>(chatMessages);
     }
 
-    /**
-     * Get current opponent's stats
-     * @return OpponentStats for the current opponent, or null if not available
-     */
+    public List<String> getFormattedGameChat() {
+        return new ArrayList<>(formattedChatMessages);
+    }
+
+    public void clearChatMessages() {
+        chatMessages.clear();
+        formattedChatMessages.clear();
+    }
+
+    // ========== Opponent Stats ==========
+
+    public OpponentStats fetchOpponentStats(String opponentUsername) {
+        try {
+            JsonObject userData = httpGet("/user/" + opponentUsername);
+            if (userData != null) {
+                this.opponentStats = parseOpponentStats(userData);
+                return opponentStats;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public OpponentStats getCurrentOpponentStats() {
         return opponentStats;
     }
 
-    /**
-     * Check if current opponent is a bot
-     * @return true if opponent is a bot
-     */
     public boolean isOpponentBot() {
         return opponentStats != null && opponentStats.isBot();
     }
 
-    /**
-     * Get bot-specific stats map for current opponent
-     * @return Map containing bot data, or null if not a bot
-     */
-    public Map<String, Object> getOpponentBotStatsMap() {
-        return opponentStats != null ? opponentStats.getBotStatsMap() : null;
-    }
-
-    private JsonObject getUserData(String username) throws Exception {
-        // Use the public API endpoint (no /api prefix needed, it's already in API_BASE)
-        String endpoint = "/user/" + username;
-        System.out.println("Fetching from endpoint: " + API_BASE + endpoint);
-
-        HttpURLConnection conn = createConnection(endpoint, "GET");
-        int responseCode = conn.getResponseCode();
-
-        System.out.println("Response code: " + responseCode);
-
-        if (responseCode == 200) {
-            JsonObject result = gson.fromJson(new InputStreamReader(conn.getInputStream()), JsonObject.class);
-            return result;
-        } else {
-            System.err.println("Failed to fetch user data. Response code: " + responseCode);
-            if (conn.getErrorStream() != null) {
-                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
-                String line;
-                while ((line = br.readLine()) != null) {
-                    System.err.println(line);
-                }
-            }
-        }
-
-        return null;
-    }
-
     private OpponentStats parseOpponentStats(JsonObject data) {
-        String username = data.has("username") ? data.get("username").getAsString() :
-                data.has("id") ? data.get("id").getAsString() : "Unknown";
-
+        String username = data.has("id") ? data.get("id").getAsString() : "Unknown";
         OpponentStats stats = new OpponentStats(username, oauthToken);
 
-        // Set basic info
-        stats.setId(data.has("id") ? data.get("id").getAsString() : username);
+        stats.setId(username);
         stats.setUsername(username);
-        stats.setOnline(data.has("seenAt")); // If seenAt exists, consider online
-
-        // Check if bot
-        boolean isBot = data.has("title") && "BOT".equals(data.get("title").getAsString());
-        stats.setBot(isBot);
+        stats.setOnline(data.has("seenAt"));
+        stats.setBot(data.has("title") && "BOT".equals(data.get("title").getAsString()));
         stats.setTitle(data.has("title") ? data.get("title").getAsString() : null);
 
-        // Parse count data
+        // Parse game counts
         if (data.has("count")) {
             JsonObject count = data.getAsJsonObject("count");
             stats.setGames(count.has("all") ? count.get("all").getAsInt() : 0);
@@ -282,44 +313,128 @@ public class LiChessClient extends ChessClient {
             stats.setDraws(count.has("draw") ? count.get("draw").getAsInt() : 0);
         }
 
-        // Parse perfs (ratings) data
+        // Parse ratings
         if (data.has("perfs")) {
             JsonObject perfs = data.getAsJsonObject("perfs");
+            if (perfs.has("blitz")) stats.setBlitzRating(perfs.getAsJsonObject("blitz").get("rating").getAsInt());
+            if (perfs.has("rapid")) stats.setRapidRating(perfs.getAsJsonObject("rapid").get("rating").getAsInt());
+            if (perfs.has("bullet")) stats.setBulletRating(perfs.getAsJsonObject("bullet").get("rating").getAsInt());
+            if (perfs.has("classical")) stats.setClassicalRating(perfs.getAsJsonObject("classical").get("rating").getAsInt());
 
-            if (perfs.has("blitz") && perfs.getAsJsonObject("blitz").has("rating")) {
-                stats.setBlitzRating(perfs.getAsJsonObject("blitz").get("rating").getAsInt());
-            }
-            if (perfs.has("rapid") && perfs.getAsJsonObject("rapid").has("rating")) {
-                stats.setRapidRating(perfs.getAsJsonObject("rapid").get("rating").getAsInt());
-            }
-            if (perfs.has("bullet") && perfs.getAsJsonObject("bullet").has("rating")) {
-                stats.setBulletRating(perfs.getAsJsonObject("bullet").get("rating").getAsInt());
-            }
-            if (perfs.has("classical") && perfs.getAsJsonObject("classical").has("rating")) {
-                stats.setClassicalRating(perfs.getAsJsonObject("classical").get("rating").getAsInt());
-            }
-
-            // Set default rating to first available
+            // Set default rating
             Integer rating = stats.getBlitzRating() != null ? stats.getBlitzRating() :
-                    stats.getRapidRating() != null ? stats.getRapidRating() :
-                            stats.getBulletRating() != null ? stats.getBulletRating() :
-                                    stats.getClassicalRating() != null ? stats.getClassicalRating() : 0;
+                    stats.getRapidRating() != null ? stats.getRapidRating() : 1500;
             stats.setRating(rating);
         }
 
         return stats;
     }
 
-    // ========== LiChess-Specific Implementation ==========
+    private OpponentStats createAIOpponentStats(int aiLevel) {
+        OpponentStats stats = new OpponentStats("AI Level " + aiLevel, oauthToken);
+        stats.setId("ai-level-" + aiLevel);
+        stats.setUsername("Stockfish AI");
+        stats.setBot(true);
+        stats.setTitle("BOT");
+        stats.setOnline(true);
 
-    private void streamGameState(String gameId) {
+        int estimatedRating = 800 + (aiLevel * 250);
+        stats.setRating(estimatedRating);
+        stats.setBlitzRating(estimatedRating);
+
+        return stats;
+    }
+
+    // ========== Event Streaming ==========
+
+    /**
+     * Stream global LiChess events (/api/stream/event)
+     */
+    private void startGlobalEventStream() {
+        streamingEvents = true;
+        executor.submit(() -> {
+            try {
+                HttpURLConnection conn = httpConnection("/stream/event", "GET");
+                conn.setReadTimeout(0);
+
+                if (conn.getResponseCode() != 200) {
+                    System.err.println("Event stream failed: " + conn.getResponseCode());
+                    return;
+                }
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                String line;
+                while (streamingEvents && (line = reader.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        handleGlobalEvent(gson.fromJson(line, JsonObject.class));
+                    }
+                }
+                reader.close();
+            } catch (Exception e) {
+                if (streamingEvents) e.printStackTrace();
+            } finally {
+                streamingEvents = false;
+                System.out.println("Event stream ended");
+            }
+        });
+    }
+
+    /**
+     * Handle global events and delegate to listener
+     */
+    private void handleGlobalEvent(JsonObject event) {
+        if (eventListener == null) return;
+
+        String type = event.get("type").getAsString();
+        System.out.println("Global Event: " + type);
+
+        switch (type) {
+            case "gameStart":
+                if (event.has("game")) {
+                    JsonObject game = event.getAsJsonObject("game");
+                    String gameId = game.get("gameId").getAsString();
+                    eventListener.onGameStart(gameId, game);
+                }
+                break;
+
+            case "gameFinish":
+                if (event.has("game")) {
+                    JsonObject game = event.getAsJsonObject("game");
+                    String gameId = game.get("gameId").getAsString();
+                    eventListener.onGameFinish(gameId, game);
+                }
+                break;
+
+            case "challenge":
+                if (event.has("challenge")) {
+                    JsonObject challenge = event.getAsJsonObject("challenge");
+                    String challengeId = challenge.get("id").getAsString();
+                    eventListener.onChallengeReceived(challengeId, challenge);
+                }
+                break;
+
+            case "challengeCanceled":
+            case "challengeDeclined":
+                if (event.has("challenge")) {
+                    JsonObject challenge = event.getAsJsonObject("challenge");
+                    String challengeId = challenge.get("id").getAsString();
+                    eventListener.onChallengeCanceled(challengeId, challenge);
+                }
+                break;
+        }
+    }
+
+    /**
+     * Stream per-game events (/api/bot/game/stream/{gameId})
+     */
+    private void streamGameEvents(String gameId) {
         System.out.println("Streaming game: " + gameId);
         try {
-            HttpURLConnection conn = createConnection("/bot/game/stream/" + gameId, "GET");
+            HttpURLConnection conn = httpConnection("/bot/game/stream/" + gameId, "GET");
             conn.setReadTimeout(0);
 
             if (conn.getResponseCode() != 200) {
-                System.err.println("Stream failed: " + conn.getResponseCode());
+                System.err.println("Game stream failed: " + conn.getResponseCode());
                 return;
             }
 
@@ -335,75 +450,61 @@ public class LiChessClient extends ChessClient {
             if (streaming) e.printStackTrace();
         } finally {
             streaming = false;
-            System.out.println("Stream ended");
+            System.out.println("Game stream ended");
         }
     }
 
+    /**
+     * Handle per-game events
+     */
     private void handleGameEvent(JsonObject event) {
         String type = event.get("type").getAsString();
-        System.out.println("Event: " + type);
 
         switch (type) {
             case "gameFull":
-                weAreWhite = isOurColor(event, "white");
-                System.out.println("We are: " + (weAreWhite ? "WHITE" : "BLACK"));
-
-                // Fetch opponent stats automatically
-                String opponentColor = weAreWhite ? "black" : "white";
-                JsonObject opponentPlayer = event.has(opponentColor) ? event.getAsJsonObject(opponentColor) : null;
-
-                if (opponentPlayer != null) {
-                    if (opponentPlayer.has("aiLevel")) {
-                        // Handle AI opponent
-                        int aiLevel = opponentPlayer.get("aiLevel").getAsInt();
-                        System.out.println("Opponent: AI Level " + aiLevel);
-                        this.opponentStats = createAIOpponentStats(aiLevel);
-                    } else if (opponentPlayer.has("id")) {
-                        // Handle human opponent
-                        String opponentUsername = opponentPlayer.get("id").getAsString();
-                        System.out.println("Opponent username: " + opponentUsername);
-                        fetchOpponentStats(opponentUsername);
-                    }
-                }
-
-                if (event.has("state")) {
-                    processStateUpdate(event.getAsJsonObject("state"));
-                }
+                handleGameFullEvent(event);
                 break;
+
             case "gameState":
-                processStateUpdate(event);
+                handleGameStateEvent(event);
+                break;
+
+            case "chatLine":
+                handleChatEvent(event);
+                break;
+
+            case "opponentGone":
+                System.out.println("Opponent is gone!");
                 break;
         }
     }
 
-    private OpponentStats createAIOpponentStats(int aiLevel) {
-        OpponentStats stats = new OpponentStats("AI Level " + aiLevel, oauthToken);
+    private void handleGameFullEvent(JsonObject event) {
+        weAreWhite = event.has("white") && event.getAsJsonObject("white").has("id") &&
+                event.getAsJsonObject("white").get("id").getAsString().equalsIgnoreCase(ourUsername);
 
-        stats.setId("ai-level-" + aiLevel);
-        stats.setUsername("Stockfish AI");
-        stats.setBot(true);
-        stats.setTitle("BOT");
-        stats.setOnline(true);
+        System.out.println("We are: " + (weAreWhite ? "WHITE" : "BLACK"));
 
-        // Estimate rating based on AI level (rough approximation)
-        int estimatedRating = 800 + (aiLevel * 250); // Level 1 ≈ 1050, Level 8 ≈ 2800
-        stats.setRating(estimatedRating);
-        stats.setBlitzRating(estimatedRating);
-        stats.setRapidRating(estimatedRating);
-        stats.setBulletRating(estimatedRating);
-        stats.setClassicalRating(estimatedRating);
+        // Fetch opponent stats
+        String opponentColor = weAreWhite ? "black" : "white";
+        JsonObject opponent = event.has(opponentColor) ? event.getAsJsonObject(opponentColor) : null;
 
-        // AI doesn't have game history
-        stats.setGames(0);
-        stats.setWins(0);
-        stats.setLosses(0);
-        stats.setDraws(0);
+        if (opponent != null) {
+            if (opponent.has("aiLevel")) {
+                int aiLevel = opponent.get("aiLevel").getAsInt();
+                this.opponentStats = createAIOpponentStats(aiLevel);
+            } else if (opponent.has("id")) {
+                fetchOpponentStats(opponent.get("id").getAsString());
+            }
+        }
 
-        System.out.println("Created AI opponent stats: Level " + aiLevel + " (~" + estimatedRating + " rating)");
-        return stats;
+        // Process initial state
+        if (event.has("state")) {
+            handleGameStateEvent(event.getAsJsonObject("state"));
+        }
     }
 
-    private void processStateUpdate(JsonObject state) {
+    private void handleGameStateEvent(JsonObject state) {
         String moves = state.has("moves") ? state.get("moves").getAsString() : "";
         String status = state.get("status").getAsString();
         String winner = state.has("winner") ? state.get("winner").getAsString() : null;
@@ -414,34 +515,24 @@ public class LiChessClient extends ChessClient {
         handleStatusChange(status, winner);
     }
 
-    private boolean isOurColor(JsonObject event, String color) {
-        if (event.has(color)) {
-            JsonObject player = event.getAsJsonObject(color);
-            if (player.has("id")) {
-                return player.get("id").getAsString().equalsIgnoreCase(ourUsername);
-            }
+    private void handleChatEvent(JsonObject event) {
+        String username = event.has("username") ? event.get("username").getAsString() : "Unknown";
+        String text = event.has("text") ? event.get("text").getAsString() : "";
+        String room = event.has("room") ? event.get("room").getAsString() : "player";
+
+        String formatted = String.format("[%s] %s: %s", room, username, text);
+        chatMessages.add(text);
+        formattedChatMessages.add(formatted);
+        System.out.println(formatted);
+
+        if (currentGame != null) {
+            currentGame.onChatMessage(username, text, room);
         }
-        return false;
     }
 
-    private String extractUsername(JsonObject event, String color) {
-        if (event.has(color)) {
-            JsonObject player = event.getAsJsonObject(color);
-            if (player.has("id")) {
-                return player.get("id").getAsString();
-            }
-            // Also check for aiLevel (AI opponents don't have id)
-            if (player.has("aiLevel")) {
-                int aiLevel = player.get("aiLevel").getAsInt();
-                return "AI Level " + aiLevel;
-            }
-        }
-        return null;
-    }
+    // ========== HTTP Helpers ==========
 
-    // ========== HTTP Helper Methods ==========
-
-    private HttpURLConnection createConnection(String endpoint, String method) throws Exception {
+    private HttpURLConnection httpConnection(String endpoint, String method) throws Exception {
         URL url = new URL(API_BASE + endpoint);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod(method);
@@ -450,16 +541,16 @@ public class LiChessClient extends ChessClient {
         return conn;
     }
 
-    private JsonObject apiGet(String endpoint) throws Exception {
-        HttpURLConnection conn = createConnection(endpoint, "GET");
+    private JsonObject httpGet(String endpoint) throws Exception {
+        HttpURLConnection conn = httpConnection(endpoint, "GET");
         if (conn.getResponseCode() == 200) {
             return gson.fromJson(new InputStreamReader(conn.getInputStream()), JsonObject.class);
         }
         return null;
     }
 
-    private JsonObject apiPost(String endpoint, String params) throws Exception {
-        HttpURLConnection conn = createConnection(endpoint, "POST");
+    private JsonObject httpPost(String endpoint, String params) throws Exception {
+        HttpURLConnection conn = httpConnection(endpoint, "POST");
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         conn.setDoOutput(true);
 
@@ -467,7 +558,8 @@ public class LiChessClient extends ChessClient {
             os.write(params.getBytes("utf-8"));
         }
 
-        if (conn.getResponseCode() == 200 || conn.getResponseCode() == 201) {
+        int code = conn.getResponseCode();
+        if (code == 200 || code == 201) {
             return gson.fromJson(new InputStreamReader(conn.getInputStream()), JsonObject.class);
         }
         return null;
