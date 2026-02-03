@@ -37,9 +37,14 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
     private Label connectionStatus;
     private Label usernameDisplay;
 
+    // Connection components
     private VBox centerBox;
     private Button connectButton;
     private TextField token;
+
+    // In Game components
+    private VBox gameBox;
+    private Button connectionButton; // Toggle Connect/disconnect
 
     // Game state
     private boolean connected = false;
@@ -91,6 +96,16 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         centerBox.getChildren().addAll(new Label("Enter your LiChess Token:"), token, connectButton);
         root.setLeft(centerBox); // keep it in the scene
 
+        // Game state
+        this.connectionButton = new Button("Queue"); // queue for game against AI or player
+
+        gameBox = new VBox(10);
+        centerBox.setPadding(new Insets(20));
+        centerBox.setAlignment(Pos.CENTER);
+        centerBox.getChildren().addAll(connectionButton);
+
+        root.setLeft(gameBox);
+
         root.setStyle("-fx-background-color: #282424;");
         return new Scene(root, 900, 500);
     }
@@ -124,11 +139,19 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
                     centerBox.setVisible(false);
                     centerBox.setManaged(false);
+
+                    gameBox.setVisible(true);
+                    gameBox.setManaged(true);
                 } else {
                     connected = false;
                     connectionStatus.setText("Connection failed");
                     connectionStatus.setStyle("-fx-text-fill: red; -fx-font-size: 16px; -fx-font-weight: bold;");
                     console.log("Failed to connect. Check your token.");
+
+                    centerBox.setVisible(true);
+                    centerBox.setManaged(true);
+                    gameBox.setVisible(false);
+                    gameBox.setManaged(false);
                 }
             });
         }).start();
