@@ -1,6 +1,7 @@
 package dev.chess.cheat.UI;
 
 import com.google.gson.JsonObject;
+import com.sun.javafx.scene.control.InputField;
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
 import dev.chess.cheat.Engine.MoveGenerator;
@@ -17,9 +18,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
@@ -37,6 +36,13 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
     // UI Components
     private Label connectionStatus;
     private Label usernameDisplay;
+
+    private VBox centerBox;
+    private Button connectButton;
+    private TextField token;
+
+    // Game state
+    private boolean connected = false;
 
     public LiChessUI(Stage stage) {
         this.stage = stage;
@@ -58,21 +64,75 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         this.connectionStatus.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
 
         // Display our username if were connected -> else: don't display
-        this.usernameDisplay = new Label(this.client.getOurUsername() == null ? "" : this.client.getOurUsername());
-        this.usernameDisplay.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-alignment: right");
+        this.usernameDisplay = new Label("");
+        this.usernameDisplay.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+        this.usernameDisplay.setVisible(false);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        header.getChildren().add(connectionStatus);
-        header.getChildren().add(usernameDisplay);
-
-        // Attach header to top
+        header.getChildren().addAll(connectionStatus, spacer, usernameDisplay);
         root.setTop(header);
 
-        // Placeholder center content
-        VBox center = new VBox();
-        center.setPadding(new Insets(10));
-        root.setCenter(center);
+        // Console display
+        VBox consoleWrapper = new VBox(console.getNode());
+        consoleWrapper.setPadding(new Insets(0, 10, 0, 0));
+        VBox.setVgrow(console.getNode(), Priority.ALWAYS);
+        root.setRight(consoleWrapper);
 
-        return new Scene(root, 600, 500);
+        // Connect state
+        this.token = new TextField("");
+
+        this.connectButton = new Button("Connect");
+        this.connectButton.setOnAction(actionEvent -> connect(token.getText()));
+
+        centerBox = new VBox(10); // store it in the field
+        centerBox.setPadding(new Insets(20));
+        centerBox.setAlignment(Pos.CENTER);
+        centerBox.getChildren().addAll(new Label("Enter your LiChess Token:"), token, connectButton);
+        root.setLeft(centerBox); // keep it in the scene
+
+        root.setStyle("-fx-background-color: #282424;");
+        return new Scene(root, 900, 500);
+    }
+
+    public void connect(String token) {
+        if (token == null || token.isEmpty()) {
+            console.log("Please enter a token!");
+            return;
+        }
+
+        this.client = new LiChessClient(token);
+        this.client.setEventListener(this);
+
+        console.log("Connecting to LiChess...");
+        new Thread(() -> {
+            boolean success = client.establishConnection();
+
+            Platform.runLater(() -> {
+                if (success) {
+                    connected = true;
+                    connectionStatus.setText("Connected");
+                    connectionStatus.setStyle("-fx-text-fill: #00ff00; -fx-font-size: 16px; -fx-font-weight: bold;");
+                    console.log("Successfully connected!");
+
+                    String username = client.getOurUsername();
+                    if (username != null && !username.isEmpty()) {
+                        usernameDisplay.setText("Username: " + username);
+                        usernameDisplay.setVisible(true);
+                        console.log("Logged in as: " + username);
+                    }
+
+                    centerBox.setVisible(false);
+                    centerBox.setManaged(false);
+                } else {
+                    connected = false;
+                    connectionStatus.setText("Connection failed");
+                    connectionStatus.setStyle("-fx-text-fill: red; -fx-font-size: 16px; -fx-font-weight: bold;");
+                    console.log("Failed to connect. Check your token.");
+                }
+            });
+        }).start();
+
     }
 
     @Override
