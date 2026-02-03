@@ -1,231 +1,235 @@
 package dev.chess.cheat.Simulation;
 
+import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
+import dev.chess.cheat.Network.ChessClient;
+import dev.chess.cheat.Simulation.Impl.*;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Game {
 
     private final Board board;
-    private final MoveGenerator moveGenerator;
     private boolean isWhiteTurn;
-    private final List<Move> moveHistory;
     private GameStatus status;
-    private Algorithm whiteAlgorithm;
-    private Algorithm blackAlgorithm;
-    private final Map<String, Integer> positionCount;
-    private int movesSinceCaptureOrPawn;
+    private final List<Move> moveHistory;
+    private final ChessEngine AI;
 
-    public enum GameStatus {
-        IN_PROGRESS,
-        WHITE_WINS,
-        BLACK_WINS,
-        STALEMATE,
-        DRAW
-    }
+    // Connection
+    private final ChessClient client;
+    private String gameId;
 
-    public Game() {
-        this.board = new Board();
-        this.moveGenerator = new MoveGenerator();
+    private final List<GameUpdateListener> listeners;
+
+    // im going to kill myself
+    private final List<Character> promotions;
+
+    public Game(Board board, List<Move> moveHistory, ChessEngine ai, ChessClient client) {
+        this.board = board;
+        this.moveHistory = new ArrayList<>(moveHistory);
+        this.AI = ai;
+        this.client = client;
         this.isWhiteTurn = true;
-        this.moveHistory = new ArrayList<>();
         this.status = GameStatus.IN_PROGRESS;
-        this.positionCount = new HashMap<>();
-        this.movesSinceCaptureOrPawn = 0;
+        this.listeners = new CopyOnWriteArrayList<>();
+        this.promotions = new ArrayList<>();
     }
 
-    public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol) {
-        if (status != GameStatus.IN_PROGRESS) {
-            return false;
+    /**
+     * Update game state from array of UCI moves
+     * @param uciMoves array of moves in UCI notation (e.g., "e2e4", "e7e8q")
+     */
+    public void updateFromMoves(String[] uciMoves) {
+        // Reset board to starting position
+        board.reset();
+        moveHistory.clear();
+        promotions.clear();
+        isWhiteTurn = true;
+
+        // Apply each move sequentially
+        for (String uciMove : uciMoves) {
+            UCIMove parsedMove = parseUCIMove(uciMove);
+            if (parsedMove != null) {
+                applyMove(parsedMove);
+            }
         }
 
-        Piece piece = board.getPiece(fromRow, fromCol);
-        if (piece == null || piece.isWhite() != isWhiteTurn) {
-            return false;
+        notifyListeners();
+    }
+
+    /**
+     * Apply a UCI move to the board
+     */
+    private void applyMove(UCIMove uciMove) {
+        // Get the piece being moved
+        Piece piece = board.getPiece(uciMove.fromRow, uciMove.fromCol);
+        if (piece == null) {
+            System.err.println("No piece at source position");
+            return;
         }
 
-        Piece captured = board.getPiece(toRow, toCol);
-        Move move = new Move(fromRow, fromCol, toRow, toCol, captured);
+        // Store the captured piece
+        Piece captured = board.getPiece(uciMove.toRow, uciMove.toCol);
 
-        if (!moveGenerator.isLegalMove(board, move, isWhiteTurn)) {
-            return false;
-        }
+        // Create Move object
+        Move move = new Move(uciMove.fromRow, uciMove.fromCol, uciMove.toRow, uciMove.toCol, captured);
 
-        boolean isPawnMove = piece.getSymbol() == 'P' || piece.getSymbol() == 'p';
-        boolean isCapture = captured != null;
-
+        // Make the move on the board
         board.movePiece(move);
+
+        // Handle pawn promotion
+        if (uciMove.promotion != null) {
+            handlePromotion(uciMove.toRow, uciMove.toCol, uciMove.promotion, piece.isWhite());
+            promotions.add(uciMove.promotion);
+        } else {
+            promotions.add(null);
+        }
+
+        // Add to history and toggle turn
         moveHistory.add(move);
         isWhiteTurn = !isWhiteTurn;
+    }
 
-        if (isPawnMove || isCapture) {
-            movesSinceCaptureOrPawn = 0;
-            positionCount.clear();
-        } else {
-            movesSinceCaptureOrPawn++;
-            String positionKey = getBoardHash();
-            positionCount.put(positionKey, positionCount.getOrDefault(positionKey, 0) + 1);
+    /**
+     * Handle pawn promotion by replacing the piece
+     */
+    private void handlePromotion(int row, int col, char promotionPiece, boolean isWhite) {
+        Piece promoted = null;
+
+        switch (Character.toUpperCase(promotionPiece)) {
+            case 'Q':
+                promoted = new Queen(isWhite);
+                break;
+            case 'R':
+                promoted = new Rook(isWhite);
+                break;
+            case 'B':
+                promoted = new Bishop(isWhite);
+                break;
+            case 'N':
+                promoted = new Knight(isWhite);
+                break;
+            default:
+                System.err.println("Unknown promotion piece: " + promotionPiece);
+                return;
         }
 
-        updateGameStatus();
-
-        return true;
+        board.setPiece(row, col, promoted);
     }
 
-    public boolean makeMove(String from, String to) {
-        int fromRow = Board.algebraicToRow(from);
-        int fromCol = Board.algebraicToCol(from);
-        int toRow = Board.algebraicToRow(to);
-        int toCol = Board.algebraicToCol(to);
 
-        return makeMove(fromRow, fromCol, toRow, toCol);
-    }
-
-    public boolean makeMove(Move move) {
-        return makeMove(move.getFromRow(), move.getFromCol(), move.getToRow(), move.getToCol());
-    }
-
-    public boolean undoLastMove() {
-        if (moveHistory.isEmpty()) {
-            return false;
+    /**
+     * Parse UCI move notation
+     * UCI format: e2e4, e7e5, e1g1 (castling), e7e8q (promotion)
+     */
+    private UCIMove parseUCIMove(String uci) {
+        if (uci == null || uci.length() < 4) {
+            return null;
         }
 
-        Move lastMove = moveHistory.remove(moveHistory.size() - 1);
-        board.undoMove(lastMove);
-        isWhiteTurn = !isWhiteTurn;
-        status = GameStatus.IN_PROGRESS;
+        try {
+            // Parse source square
+            int fromCol = uci.charAt(0) - 'a';  // a-h -> 0-7
+            int fromRow = 8 - (uci.charAt(1) - '0');  // 1-8 -> 7-0 (inverted for array indexing)
 
-        return true;
-    }
+            // Parse destination square
+            int toCol = uci.charAt(2) - 'a';
+            int toRow = 8 - (uci.charAt(3) - '0');
 
-    public List<Move> getLegalMoves() {
-        return moveGenerator.generateAllMoves(board, isWhiteTurn);
-    }
-
-    public List<Move> getLegalMovesForPiece(int row, int col) {
-        Piece piece = board.getPiece(row, col);
-        if (piece == null || piece.isWhite() != isWhiteTurn) {
-            return new ArrayList<>();
-        }
-
-        List<Move> pieceMoves = moveGenerator.generatePieceMoves(board, row, col);
-        List<Move> legalMoves = new ArrayList<>();
-
-        for (Move move : pieceMoves) {
-            if (moveGenerator.isLegalMove(board, move, isWhiteTurn)) {
-                legalMoves.add(move);
+            // Handle promotion
+            Character promotion = null;
+            if (uci.length() == 5) {
+                promotion = Character.toUpperCase(uci.charAt(4));
             }
-        }
 
-        return legalMoves;
-    }
-
-    public Move makeEngineMove(Algorithm algorithm, int depth) {
-        if (status != GameStatus.IN_PROGRESS) {
+            return new UCIMove(fromRow, fromCol, toRow, toCol, promotion);
+        } catch (Exception e) {
+            System.err.println("Error parsing UCI move: " + uci);
+            e.printStackTrace();
             return null;
         }
-
-        Move bestMove = algorithm.findBestMove(board, isWhiteTurn, depth);
-        if (bestMove != null) {
-            makeMove(bestMove);
-        }
-
-        return bestMove;
     }
 
-    public void setEngines(Algorithm whiteAlgorithm, Algorithm blackAlgorithm) {
-        this.whiteAlgorithm = whiteAlgorithm;
-        this.blackAlgorithm = blackAlgorithm;
-    }
-
-    public Move playEngineMove(int depth) {
-        Algorithm currentAlgorithm = isWhiteTurn ? whiteAlgorithm : blackAlgorithm;
-        if (currentAlgorithm == null) {
-            return null;
-        }
-        return makeEngineMove(currentAlgorithm, depth);
-    }
-
-    private void updateGameStatus() {
-        if (moveGenerator.isCheckmate(board, isWhiteTurn)) {
-            status = isWhiteTurn ? GameStatus.BLACK_WINS : GameStatus.WHITE_WINS;
-        } else if (moveGenerator.isStalemate(board, isWhiteTurn)) {
-            status = GameStatus.STALEMATE;
-        } else if (isDrawByRepetition() || isDrawByFiftyMoveRule()) {
-            status = GameStatus.DRAW;
-        }
-    }
-
-    public boolean isInCheck() {
-        return moveGenerator.isKingInCheck(board, isWhiteTurn);
-    }
-
-    private boolean isDrawByRepetition() {
-        String currentPosition = getBoardHash();
-        return positionCount.getOrDefault(currentPosition, 0) >= 3;
-    }
-
-    private boolean isDrawByFiftyMoveRule() {
-        return movesSinceCaptureOrPawn >= 100;
-    }
-
-    private String getBoardHash() {
-        StringBuilder hash = new StringBuilder();
-        Piece[][] pieces = board.getPieces();
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                Piece piece = pieces[row][col];
-                if (piece == null) {
-                    hash.append('.');
+    /**
+     * Update game status from LiChess status string
+     * @param lichessStatus the status from LiChess API
+     * @param winner "white", "black", or null
+     */
+    public void updateStatus(String lichessStatus, String winner) {
+        switch (lichessStatus) {
+            case "started":
+            case "created":
+                this.status = GameStatus.IN_PROGRESS;
+                break;
+            case "mate":
+                // Determine winner
+                if ("white".equals(winner)) {
+                    this.status = GameStatus.WHITE_WINS;
+                } else if ("black".equals(winner)) {
+                    this.status = GameStatus.BLACK_WINS;
                 } else {
-                    hash.append(piece.getSymbol());
+                    this.status = GameStatus.IN_PROGRESS;
                 }
-            }
+                break;
+            case "resign":
+            case "timeout":
+            case "outoftime":
+                // Winner decided by resignation or timeout
+                if ("white".equals(winner)) {
+                    this.status = GameStatus.WHITE_WINS;
+                } else if ("black".equals(winner)) {
+                    this.status = GameStatus.BLACK_WINS;
+                } else {
+                    this.status = GameStatus.DRAW;
+                }
+                break;
+            case "stalemate":
+                this.status = GameStatus.STALEMATE;
+                break;
+            case "draw":
+            case "aborted":
+                this.status = GameStatus.DRAW;
+                break;
+            default:
+                this.status = GameStatus.IN_PROGRESS;
         }
-        hash.append(isWhiteTurn ? 'W' : 'B');
-        return hash.toString();
+
+        notifyListeners();
     }
+
+    /**
+     * Add a listener for game updates (for JavaFX UI)
+     */
+    public void addUpdateListener(GameUpdateListener listener) {
+        listeners.add(listener);
+    }
+
+    /**
+     * Remove a listener
+     */
+    public void removeUpdateListener(GameUpdateListener listener) {
+        listeners.remove(listener);
+    }
+
+    /**
+     * Notify all listeners of game update
+     */
+    private void notifyListeners() {
+        for (GameUpdateListener listener : listeners) {
+            listener.onGameUpdated(this);
+        }
+    }
+
 
     public void reset() {
         board.reset();
         moveHistory.clear();
         isWhiteTurn = true;
         status = GameStatus.IN_PROGRESS;
-        positionCount.clear();
-        movesSinceCaptureOrPawn = 0;
     }
 
-    public int getMoveCount() {
-        return moveHistory.size();
-    }
-
-    public int getFullMoveNumber() {
-        return (moveHistory.size() / 2) + 1;
-    }
-
-    public Move getLastMove() {
-        return moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1);
-    }
-
-    public List<Move> getMoveHistory() {
-        return new ArrayList<>(moveHistory);
-    }
-
-    public String getMoveHistoryUCI() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < moveHistory.size(); i++) {
-            if (i % 2 == 0) {
-                sb.append(String.format("%d. ", (i / 2) + 1));
-            }
-            sb.append(moveHistory.get(i).toUCI()).append(" ");
-        }
-        return sb.toString().trim();
-    }
 
     public Board getBoard() {
         return board;
@@ -235,34 +239,65 @@ public class Game {
         return isWhiteTurn;
     }
 
+    public void setWhiteTurn(boolean whiteTurn) {
+        isWhiteTurn = whiteTurn;
+    }
+
     public GameStatus getStatus() {
         return status;
     }
 
-    public MoveGenerator getMoveGenerator() {
-        return moveGenerator;
+    public void setStatus(GameStatus status) {
+        this.status = status;
     }
 
-    public String getCurrentPlayer() {
-        return isWhiteTurn ? "White" : "Black";
+    public List<Move> getMoveHistory() {
+        return moveHistory;
     }
 
-    public boolean isGameOver() {
-        return status != GameStatus.IN_PROGRESS;
+    public ChessEngine getAI() {
+        return AI;
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== Chess Game ===\n");
-        sb.append("Turn: ").append(getCurrentPlayer()).append("\n");
-        sb.append("Move: ").append(getFullMoveNumber()).append("\n");
-        sb.append("Status: ").append(status).append("\n");
-        if (isInCheck()) {
-            sb.append("CHECK!\n");
+    public ChessClient getClient() {
+        return client;
+    }
+
+    public String getGameId() {
+        return gameId;
+    }
+
+    public void setGameId(String gameId) {
+        this.gameId = gameId;
+    }
+
+    public List<GameUpdateListener> getListeners() {
+        return listeners;
+    }
+
+    /**
+     * Helper class to store UCI move data including promotion
+     */
+    private static class UCIMove {
+        final int fromRow;
+        final int fromCol;
+        final int toRow;
+        final int toCol;
+        final Character promotion;
+
+        UCIMove(int fromRow, int fromCol, int toRow, int toCol, Character promotion) {
+            this.fromRow = fromRow;
+            this.fromCol = fromCol;
+            this.toRow = toRow;
+            this.toCol = toCol;
+            this.promotion = promotion;
         }
-        sb.append("Legal moves: ").append(getLegalMoves().size()).append("\n");
-        sb.append("Move history: ").append(getMoveHistoryUCI()).append("\n");
-        return sb.toString();
+    }
+
+    /**
+     * Interface for listening to game updates
+     */
+    public interface GameUpdateListener {
+        void onGameUpdated(Game game);
     }
 }
