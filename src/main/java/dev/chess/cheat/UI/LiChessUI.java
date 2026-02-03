@@ -5,7 +5,7 @@ import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
 import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Network.Impl.LiChessClient;
-import dev.chess.cheat.UI.Viewer.BoardViewer;
+import dev.chess.cheat.UI.Viewer.LiChessBoardViewer;
 import dev.chess.cheat.UI.Viewer.ConsoleViewer;
 import dev.chess.cheat.Util.Interface.SceneMaker;
 import javafx.application.Platform;
@@ -19,7 +19,7 @@ import javafx.stage.Stage;
 
 public class LiChessUI implements SceneMaker {
 
-    private final BoardViewer boardViewer;
+    private final LiChessBoardViewer boardViewer;
     private final ConsoleViewer console;
     private LiChessClient client;
     private ChessEngine engine;
@@ -36,7 +36,7 @@ public class LiChessUI implements SceneMaker {
     private Label statusLabel;
 
     public LiChessUI(Stage stage) {
-        this.boardViewer = new BoardViewer();
+        this.boardViewer = new LiChessBoardViewer();
         this.console = new ConsoleViewer();
     }
 
@@ -209,6 +209,7 @@ public class LiChessUI implements SceneMaker {
         disconnectButton.setDisable(true);
         queueButton.setDisable(true);
         stopButton.setDisable(true);
+        boardViewer.clearOpponentStats();
     }
 
     private void handleQueue() {
@@ -236,6 +237,20 @@ public class LiChessUI implements SceneMaker {
 
                 Platform.runLater(() -> {
                     boardViewer.show();
+
+                    // Update game info
+                    String ourColor = client.areWeWhite() ? "White" : "Black";
+                    boardViewer.updateGameInfo(gameId, ourColor, "standard", "rapid");
+
+                    // Fetch and display opponent stats
+                    var opponentStats = client.getCurrentOpponentStats();
+                    if (opponentStats != null) {
+                        boardViewer.updateOpponentStats(opponentStats.getStatsMap());
+                        console.log("Opponent: " + opponentStats.getUsername() +
+                                " (Rating: " + opponentStats.getRating() + ")" +
+                                (opponentStats.isBot() ? " [BOT]" : ""));
+                    }
+
                     var game = client.getCurrentGame();
                     game.addUpdateListener(g -> {
                         Platform.runLater(() -> {
