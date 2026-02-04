@@ -21,6 +21,9 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 
 public class LiChessUI implements SceneMaker, ILiChessEvents {
@@ -45,13 +48,26 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
     // In Game components
     private VBox gameBox;
     private Button connectionButton; // Toggle Connect/disconnect
+    private ToggleGroup gameTypeGroup;
+    private RadioButton aiRadio;
+    private RadioButton playerRadio;
+    private HBox radioButtonBox;
+    private Button displayGame;
+
 
     // Game state
     private boolean connected = false;
+    private boolean inGame = false;
 
     public LiChessUI(Stage stage) {
         this.stage = stage;
         this.console = new ConsoleViewer();
+        this.engine = new ChessEngine(new AlphaBetaAlgorithm(new MasterEvaluator(), new MoveGenerator()));
+        console.log("============================");
+        console.log(" ");
+        console.log("         LICHESS BOT        ");
+        console.log(" ");
+        console.log("============================");
     }
 
 
@@ -166,15 +182,130 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-padding: 6 20;" +
                         "-fx-cursor: hand;"
         ));
+        this.connectionButton.setOnAction(actionEvent -> {
+            if (inGame) {
+                if (client.getCurrentGameId() != null) {
+                    client.resignGame(client.getCurrentGameId());
+                    console.log("Resigned from game " + client.getCurrentGameId());
+                }
+                client.closeConnection();
+                inGame = false;
+                connectionButton.setText("Queue");
+                radioButtonBox.setVisible(!inGame);
+                radioButtonBox.setManaged(!inGame);
 
-        gameBox = new VBox(10);
-        gameBox.setAlignment(Pos.CENTER);
-        gameBox.getChildren().add(connectionButton);
+                displayGame.setVisible(inGame);
+                displayGame.setManaged(inGame);
+            } else {
+                inGame = true;
+                client.startGlobalEventStream(); // Start listening for game events
+                if (aiRadio.isSelected()) {
+                    client.challengeAI(3, 5, 0);
+                    console.log("Challenging ai... ");
+                } else {
+                    console.log("Player challenge not yet implemented");
+                    inGame = false;
+                    return;
+                }
+                connectionButton.setText("Disconnect");
+                radioButtonBox.setVisible(!inGame);
+                radioButtonBox.setManaged(!inGame);
+                displayGame.setVisible(inGame);
+                displayGame.setManaged(inGame);
+            }
+        });
 
-        centerBox.setVisible(true);
-        centerBox.setManaged(true);
-        gameBox.setVisible(false);
-        gameBox.setManaged(false);
+        // Game type selection
+        this.gameTypeGroup = new ToggleGroup();
+
+        this.aiRadio = new RadioButton("AI");
+        this.aiRadio.setToggleGroup(gameTypeGroup);
+        this.aiRadio.setSelected(true);
+        this.aiRadio.setStyle(
+                "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;"
+        );
+
+        this.playerRadio = new RadioButton("Player");
+        this.playerRadio.setToggleGroup(gameTypeGroup);
+        this.playerRadio.setStyle(
+                "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;"
+        );
+
+        // HBox for radio buttons with proper alignment
+        this.radioButtonBox = new HBox(15);
+        this.radioButtonBox.setAlignment(Pos.CENTER);
+        this.radioButtonBox.getChildren().addAll(aiRadio, playerRadio);
+
+        this.displayGame = new Button("Display Game");
+        displayGame.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        );
+
+        // Hover FX - Fixed to apply to displayGame button
+        displayGame.setOnMouseEntered(e -> displayGame.setStyle(
+                "-fx-background-color: #357ABD;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
+        displayGame.setOnMouseExited(e -> displayGame.setStyle(
+                "-fx-background-color: #4a90e2;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-padding: 6 20;" +
+                        "-fx-cursor: hand;"
+        ));
+        this.displayGame.setOnAction(actionEvent -> {
+            if (!connected || client == null) {
+                console.log("Not connected to LiChess.");
+                return;
+            }
+
+            String gameId = client.getCurrentGameId();
+            if (gameId == null || gameId.isEmpty()) {
+                console.log("No active game to display.");
+                return;
+            }
+
+            try {
+                URI gameUri = new URI("https://lichess.org/" + gameId);
+                java.awt.Desktop.getDesktop().browse(gameUri);
+                console.log("Opened game: " + gameId);
+            } catch (IOException | URISyntaxException e) {
+                console.log("Failed to open game in browser.");
+                e.printStackTrace();
+            }
+        });
+
+        this.gameBox = new VBox(15);
+        this.gameBox.setAlignment(Pos.CENTER);
+        this.gameBox.getChildren().addAll(connectionButton, radioButtonBox, displayGame);
+
+        // Initial visibility setup
+        this.centerBox.setVisible(true);
+        this.centerBox.setManaged(true);
+        this.gameBox.setVisible(false);
+        this.gameBox.setManaged(false);
+        this.displayGame.setVisible(false);
+        this.displayGame.setManaged(false);
+        this.radioButtonBox.setVisible(true);
+        this.radioButtonBox.setManaged(true);
+
 
         VBox centerWrapper = new VBox();
         centerWrapper.setAlignment(Pos.CENTER);
@@ -186,6 +317,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
         root.setStyle("-fx-background-color: #282424;");
         return new Scene(root, 900, 500);
+
     }
 
     public void connect(String token) {
@@ -203,10 +335,10 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
             Platform.runLater(() -> {
                 if (success) {
-                    connected = true;
-                    connectionStatus.setText("Connected");
-                    connectionStatus.setStyle("-fx-text-fill: #00ff00; -fx-font-size: 16px; -fx-font-weight: bold;");
-                    console.log("Successfully connected!");
+                    this.connected = true;
+                    this.connectionStatus.setText("Connected");
+                    this.connectionStatus.setStyle("-fx-text-fill: #00ff00; -fx-font-size: 16px; -fx-font-weight: bold;");
+                    this.console.log("Successfully connected!");
 
                     String username = client.getOurUsername();
                     if (username != null && !username.isEmpty()) {
@@ -215,20 +347,20 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         console.log("Logged in as: " + username);
                     }
 
-                    centerBox.setVisible(false);
-                    centerBox.setManaged(false);
-                    gameBox.setVisible(true);
-                    gameBox.setManaged(true);
+                    this.centerBox.setVisible(false);
+                    this.centerBox.setManaged(false);
+                    this.gameBox.setVisible(true);
+                    this.gameBox.setManaged(true);
                 } else {
-                    connected = false;
-                    connectionStatus.setText("Connection failed");
-                    connectionStatus.setStyle("-fx-text-fill: red; -fx-font-size: 16px; -fx-font-weight: bold;");
-                    console.log("Failed to connect. Check your token.");
+                    this.connected = false;
+                    this.connectionStatus.setText("Connection failed");
+                    this.connectionStatus.setStyle("-fx-text-fill: red; -fx-font-size: 16px; -fx-font-weight: bold;");
+                    this.console.log("Failed to connect. Check your token.");
 
-                    centerBox.setVisible(true);
-                    centerBox.setManaged(true);
-                    gameBox.setVisible(false);
-                    gameBox.setManaged(false);
+                    this.centerBox.setVisible(true);
+                    this.centerBox.setManaged(true);
+                    this.gameBox.setVisible(false);
+                    this.gameBox.setManaged(false);
                 }
             });
         }).start();
@@ -238,15 +370,33 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
     @Override
     public void onGameStart(String gameId, JsonObject gameData) {
-        Platform.runLater(() -> {
+        // Ignore game start events if we're not intentionally in a game
+        if (!inGame) {
+            console.log("Ignoring existing game: " + gameId);
+            return;
+        }
 
+        Platform.runLater(() -> {
+            this.connectionButton.setText("Disconnect");
+            radioButtonBox.setVisible(!inGame);
+            radioButtonBox.setManaged(!inGame);
+            displayGame.setVisible(inGame);
+            displayGame.setManaged(inGame);
+            client.streamGame(gameId, this.engine);
         });
     }
 
     @Override
     public void onGameFinish(String gameId, JsonObject gameData) {
         Platform.runLater(() -> {
-
+            displayGame.setVisible(false);
+            this.inGame = false;
+            this.connectionButton.setText("Connect");
+            radioButtonBox.setVisible(!inGame);
+            radioButtonBox.setManaged(!inGame);
+            displayGame.setVisible(inGame);
+            displayGame.setManaged(inGame);
+            console.log("Disconnecting from game: " + gameId);
         });
     }
 

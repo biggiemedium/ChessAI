@@ -48,7 +48,10 @@ public class LiChessClient extends ChessClient {
 
     private ILiChessEvents eventListener;
 
-    // ========== Constructors ==========
+    // Move calculation handling
+    private volatile boolean waitingForMoveConfirmation = false;
+    private volatile int lastProcessedMoveCount = 0;
+
 
     public LiChessClient() {
         this.gson = new Gson();
@@ -76,7 +79,6 @@ public class LiChessClient extends ChessClient {
                 connected = true;
                 ourUsername = account.get("id").getAsString();
                 System.out.println("Connected as: " + ourUsername);
-                startGlobalEventStream();
                 return true;
             }
         } catch (Exception e) {
@@ -153,6 +155,10 @@ public class LiChessClient extends ChessClient {
         this.currentGame = new Game(new Board(), new ArrayList<>(), engine, this);
         this.currentGame.setGameId(gameId);
 
+        // Reset state tracking
+        this.waitingForMoveConfirmation = false;
+        this.lastProcessedMoveCount = 0;
+
         streaming = true;
         executor.submit(() -> streamGameEvents(gameId));
         return true;
@@ -166,6 +172,7 @@ public class LiChessClient extends ChessClient {
     @Override
     public boolean makeMove(String move) {
         try {
+            waitingForMoveConfirmation = true;
             HttpURLConnection conn = httpConnection("/bot/game/" + currentGameId + "/move/" + move, "POST");
             int code = conn.getResponseCode();
             if (code == 200) {
@@ -174,10 +181,12 @@ public class LiChessClient extends ChessClient {
             }
             if (code == 400) {
                 System.err.println("Invalid move: " + conn.getResponseMessage());
+                waitingForMoveConfirmation = false;  // Reset on failure
             }
             return false;
         } catch (Exception e) {
             e.printStackTrace();
+            waitingForMoveConfirmation = false;
             return false;
         }
     }
@@ -214,10 +223,39 @@ public class LiChessClient extends ChessClient {
     @Override
     protected void handleStatusChange(String status, String winner) {
         currentGame.updateStatus(status, winner);
-        if ("started".equals(status) && isOurTurn()) {
-            executor.submit(this::calculateAndMakeMove);
+
+        if ("started".equals(status) && isOurTurn() && !waitingForMoveConfirmation) {
+            executor.submit(() -> {
+                try {
+                    Thread.sleep(100);
+                    if (!waitingForMoveConfirmation && isOurTurn()) {
+                        calculateAndMakeMove();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
         }
     }
+
+    public boolean resignGame(String gameId) {
+        try {
+            HttpURLConnection conn = httpConnection("/bot/game/" + gameId + "/resign", "POST");
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                System.out.println("Resigned from game: " + gameId);
+                return true;
+            }
+            if(code == 400) {
+                System.err.printf("This request is invalid because [%s] \n ", conn.getResponseMessage());
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
 
     @Override
     protected String moveToUCI(dev.chess.cheat.Engine.Move move) {
@@ -350,7 +388,7 @@ public class LiChessClient extends ChessClient {
     /**
      * Stream global LiChess events (/api/stream/event)
      */
-    private void startGlobalEventStream() {
+    public void startGlobalEventStream() {
         streamingEvents = true;
         executor.submit(() -> {
             try {
@@ -509,9 +547,19 @@ public class LiChessClient extends ChessClient {
         String status = state.get("status").getAsString();
         String winner = state.has("winner") ? state.get("winner").getAsString() : null;
 
-        System.out.println("Moves: " + (moves.isEmpty() ? "none" : moves) + " | Status: " + status);
+        String[] moveArray = moves.isEmpty() ? new String[0] : moves.split(" ");
+        int currentMoveCount = moveArray.length;
 
-        updateGameState(moves.isEmpty() ? new String[0] : moves.split(" "));
+        System.out.println("Moves: " + (moves.isEmpty() ? "none" : moves) + " | Status: " + status);
+        System.out.println("Move count: " + currentMoveCount + " (last processed: " + lastProcessedMoveCount + ")");
+
+        // Only update if this is a new state
+        if (currentMoveCount > lastProcessedMoveCount) {
+            updateGameState(moveArray);
+            lastProcessedMoveCount = currentMoveCount;
+            waitingForMoveConfirmation = false;  // Move was confirmed
+        }
+
         handleStatusChange(status, winner);
     }
 
