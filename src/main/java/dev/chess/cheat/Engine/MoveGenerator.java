@@ -29,21 +29,13 @@ public class MoveGenerator {
 
                 List<Move> pseudoMoves = generatePieceMoves(board, fromRow, fromCol);
 
-                if (!pseudoMoves.isEmpty()) {
-                    System.out.println("Piece at " + (char)('a' + fromCol) + (8 - fromRow) + " (" + piece.getClass().getSimpleName() + "): " + pseudoMoves.size() + " pseudo-legal moves");
-                }
-
                 for (Move move : pseudoMoves) {
                     if (isLegalMove(board, move, isWhite)) {
                         legalMoves.add(move);
-
-                        System.out.println("  Legal: " + (char)('a' + move.getFromCol()) + (8 - move.getFromRow()) + " -> " + (char)('a' + move.getToCol()) + (8 - move.getToRow()));
                     }
                 }
             }
         }
-
-        System.out.println("Total legal moves: " + legalMoves.size());
 
         return legalMoves;
     }
@@ -57,16 +49,13 @@ public class MoveGenerator {
         Piece piece = board.getPiece(fromRow, fromCol);
         if (piece == null) return moves;
 
-        Piece[][] grid = board.getPieces();
-
         for (int toRow = 0; toRow < 8; toRow++) {
             for (int toCol = 0; toCol < 8; toCol++) {
-
-                if (!piece.isValidMove(fromRow, fromCol, toRow, toCol, grid)) {
+                if (!piece.isValidMove(fromRow, fromCol, toRow, toCol, board.getPieces())) {
                     continue;
                 }
 
-                Piece captured = grid[toRow][toCol];
+                Piece captured = board.getPiece(toRow, toCol);
                 moves.add(new Move(fromRow, fromCol, toRow, toCol, captured));
             }
         }
@@ -120,18 +109,24 @@ public class MoveGenerator {
      * Check if a move is legal (doesn't leave own king in check)
      */
     public boolean isLegalMove(Board board, Move move, boolean isWhite) {
-        Piece moving = board.getPiece(move.getFromRow(), move.getFromCol());
-        Piece captured = move.getCapturedPiece();
+        // Store original positions
+        int fromRow = move.getFromRow();
+        int fromCol = move.getFromCol();
+        int toRow = move.getToRow();
+        int toCol = move.getToCol();
+
+        Piece moving = board.getPiece(fromRow, fromCol);
+        Piece captured = board.getPiece(toRow, toCol); // Get from board -> NOT FROM MOVE
 
         // Make move
-        board.setPiece(move.getToRow(), move.getToCol(), moving);
-        board.setPiece(move.getFromRow(), move.getFromCol(), null);
+        board.setPiece(toRow, toCol, moving);
+        board.setPiece(fromRow, fromCol, null);
 
         boolean kingInCheck = isKingInCheck(board, isWhite);
 
-        // Undo move
-        board.setPiece(move.getFromRow(), move.getFromCol(), moving);
-        board.setPiece(move.getToRow(), move.getToCol(), captured);
+        // Undo move -> RESTORE IN REVERSE ORDER OR IT FUCKS IT
+        board.setPiece(fromRow, fromCol, moving);
+        board.setPiece(toRow, toCol, captured);
 
         return !kingInCheck;
     }

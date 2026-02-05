@@ -123,17 +123,17 @@ public class Game {
         // Check for en passant
         Piece captured = board.getPiece(toRow, toCol);
         if (piece instanceof Pawn && toCol != fromCol && captured == null) {
-            // En passant capture - remove the pawn that was captured
+            // En passant capture -> remove the pawn that was captured
             int capturedPawnRow = fromRow; // Same row as attacking pawn
             captured = board.getPiece(capturedPawnRow, toCol);
             board.setPiece(capturedPawnRow, toCol, null);
         }
 
-        // Create and execute move
+        // Create n execute move
         Move move = new Move(fromRow, fromCol, toRow, toCol, captured);
         board.movePiece(move);
 
-        // Handle pawn promotion
+        // pawn promotion
         if (promotion != null) {
             promotePawn(toRow, toCol, promotion, piece.isWhite());
             promotions.add(promotion);
@@ -158,18 +158,16 @@ public class Game {
         // Move the rook
         if (toCol > fromCol) {
             // Kingside castling (O-O)
-            // Rook moves from h-file (col 7) to f-file (col 5)
+            // Rook moves from h-file (col 7) -> f-file (col 5)
             Piece rook = board.getPiece(fromRow, 7);
             board.setPiece(fromRow, 7, null);
             board.setPiece(fromRow, 5, rook);
-            System.out.println("Kingside castling executed");
         } else {
             // Queenside castling (O-O-O)
-            // Rook moves from a-file (col 0) to d-file (col 3)
+            // Rook moves from a-file (col 0) -> d-file (col 3)
             Piece rook = board.getPiece(fromRow, 0);
             board.setPiece(fromRow, 0, null);
             board.setPiece(fromRow, 3, rook);
-            System.out.println("Queenside castling executed");
         }
     }
 
@@ -206,9 +204,9 @@ public class Game {
         if (move == null) return null;
 
         char fromCol = (char) ('a' + move.getFromCol());
-        char fromRow = (char) ('8' - move.getFromRow());  // ✓ FIXED
+        char fromRow = (char) ('8' - move.getFromRow());
         char toCol = (char) ('a' + move.getToCol());
-        char toRow = (char) ('8' - move.getToRow());      // ✓ FIXED
+        char toRow = (char) ('8' - move.getToRow());
 
         String uci = "" + fromCol + fromRow + toCol + toRow;
 

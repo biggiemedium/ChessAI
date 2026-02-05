@@ -20,7 +20,7 @@ public class Knight extends Piece {
             return false;
         }
 
-        // Knight jumps over pieces, only check destination
+        // Knight jumps over pieces -> only check destination
         return isValidDestination(board[toRow][toCol]);
     }
 

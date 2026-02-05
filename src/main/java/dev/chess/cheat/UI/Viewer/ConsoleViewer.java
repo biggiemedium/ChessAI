@@ -32,8 +32,8 @@ public class ConsoleViewer {
         );
 
         root = new VBox(console);
-        root.setPadding(new Insets(10));          // inner padding
-        root.setPrefWidth(350);                   // fixed sidebar width
+        root.setPadding(new Insets(10));
+        root.setPrefWidth(350);
         VBox.setVgrow(console, Priority.ALWAYS);
     }
 

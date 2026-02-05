@@ -5,6 +5,8 @@ import com.google.gson.JsonObject;
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
 import dev.chess.cheat.Engine.MoveGenerator;
+import dev.chess.cheat.Engine.SearchLogic.Algorithm;
+import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
 import dev.chess.cheat.Engine.SearchLogic.Impl.AlphaBetaAlgorithm;
 import dev.chess.cheat.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Network.Impl.LiChessClient;
@@ -35,6 +37,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
     // Simulation setup
     private LiChessClient client;
     private ChessEngine engine;
+    private final AlgorithmFactory algorithmFactory;
     private Game game;
     private String currentGameId;
     private boolean isPlayingWhite; // Track which color we're playing
@@ -56,8 +59,11 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
     private RadioButton playerRadio;
     private HBox radioButtonBox;
     private Button displayGame;
-    private Spinner<Integer> depthSpinner;
     private Spinner<Integer> aiLevelSpinner;
+
+    // My AI settings
+    private Spinner<Integer> depthSpinner;
+    private ComboBox<String> algorithmComboBox;
 
     // Game state
     private boolean connected = false;
@@ -70,6 +76,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         this.console = new ConsoleViewer();
 
         // Initialize engine and game
+        this.algorithmFactory = new AlgorithmFactory();
         this.engine = new ChessEngine(new AlphaBetaAlgorithm(new MasterEvaluator(), new MoveGenerator()));
         this.game = new Game(new Board(), engine);
         this.game.addUpdateListener(this); // Listen to game updates
@@ -162,27 +169,43 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
 
         // ========== Game Settings ========== //
 
-        // AI Level Spinner
-        Label aiLevelLabel = new Label("AI Level:");
-        aiLevelLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+        // AI Settings Group
+        Label aiSettingsLabel = new Label("AI Settings");
+        aiSettingsLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
 
-        this.aiLevelSpinner = new Spinner<>(1, 8, 3); // min=1, max=8, initial=3
-        aiLevelSpinner.setEditable(true);
-        aiLevelSpinner.setPrefWidth(80);
-        aiLevelSpinner.setStyle(
+        // Algorithm ComboBox
+        Label algorithmLabel = new Label("Algorithm:");
+        algorithmLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        this.algorithmComboBox = new ComboBox<>();
+        algorithmComboBox.getItems().addAll(algorithmFactory.getAlgorithmNames());
+        algorithmComboBox.setValue("Alpha-Beta"); // Default selection
+        algorithmComboBox.setStyle(
                 "-fx-background-color: #1e1e1e;" +
                         "-fx-text-fill: white;"
         );
 
-        HBox aiLevelBox = new HBox(10);
-        aiLevelBox.setAlignment(Pos.CENTER);
-        aiLevelBox.getChildren().addAll(aiLevelLabel, aiLevelSpinner);
+        // Update algorithm when selection changes
+        algorithmComboBox.setOnAction(e -> {
+            String selectedAlgorithm = algorithmComboBox.getValue();
+            Algorithm newAlgorithm = algorithmFactory.createAlgorithm(
+                    selectedAlgorithm,
+                    new MasterEvaluator(),
+                    new MoveGenerator()
+            );
+            engine.setAlgorithm(newAlgorithm);
+            console.log("Algorithm changed to: " + selectedAlgorithm);
+        });
+
+        HBox algorithmBox = new HBox(10);
+        algorithmBox.setAlignment(Pos.CENTER);
+        algorithmBox.getChildren().addAll(algorithmLabel, algorithmComboBox);
 
         // Search Depth Spinner
         Label depthLabel = new Label("Search Depth:");
         depthLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
 
-        this.depthSpinner = new Spinner<>(1, 10, 3); // min=1, max=10, initial=3
+        this.depthSpinner = new Spinner<>(1, 10, 3);
         depthSpinner.setEditable(true);
         depthSpinner.setPrefWidth(80);
         depthSpinner.setStyle(
@@ -194,7 +217,64 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         depthBox.setAlignment(Pos.CENTER);
         depthBox.getChildren().addAll(depthLabel, depthSpinner);
 
-        // Game box (queue button)
+        // AI Settings container
+        VBox aiSettingsBox = new VBox(10);
+        aiSettingsBox.setAlignment(Pos.CENTER);
+        aiSettingsBox.setStyle(
+                "-fx-border-color: #4a90e2;" +
+                        "-fx-border-width: 1;" +
+                        "-fx-border-radius: 6;" +
+                        "-fx-padding: 15;"
+        );
+        aiSettingsBox.getChildren().addAll(aiSettingsLabel, algorithmBox, depthBox);
+
+        // ========== Queue Group ========== //
+
+        // Queue Group Label
+        Label queueLabel = new Label("Queue");
+        queueLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+
+        // Game type selection
+        this.gameTypeGroup = new ToggleGroup();
+
+        this.aiRadio = new RadioButton("AI");
+        this.aiRadio.setToggleGroup(gameTypeGroup);
+        this.aiRadio.setSelected(true);
+        this.aiRadio.setStyle(
+                "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;"
+        );
+
+        this.playerRadio = new RadioButton("Player");
+        this.playerRadio.setToggleGroup(gameTypeGroup);
+        this.playerRadio.setStyle(
+                "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;"
+        );
+
+        this.radioButtonBox = new HBox(15);
+        this.radioButtonBox.setAlignment(Pos.CENTER);
+        this.radioButtonBox.getChildren().addAll(aiRadio, playerRadio);
+
+        // AI Level Spinner (for LiChess AI challenges)
+        Label aiLevelLabel = new Label("LiChess AI Level:");
+        aiLevelLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        this.aiLevelSpinner = new Spinner<>(1, 8, 3);
+        aiLevelSpinner.setEditable(true);
+        aiLevelSpinner.setPrefWidth(80);
+        aiLevelSpinner.setStyle(
+                "-fx-background-color: #1e1e1e;" +
+                        "-fx-text-fill: white;"
+        );
+
+        HBox aiLevelBox = new HBox(10);
+        aiLevelBox.setAlignment(Pos.CENTER);
+        aiLevelBox.getChildren().addAll(aiLevelLabel, aiLevelSpinner);
+
+        // Queue button
         this.connectionButton = new Button("Queue");
         connectionButton.setStyle(
                 "-fx-background-color: #4a90e2;" +
@@ -226,30 +306,18 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         ));
         this.connectionButton.setOnAction(actionEvent -> handleQueueButton());
 
-        // Game type selection
-        this.gameTypeGroup = new ToggleGroup();
-
-        this.aiRadio = new RadioButton("AI");
-        this.aiRadio.setToggleGroup(gameTypeGroup);
-        this.aiRadio.setSelected(true);
-        this.aiRadio.setStyle(
-                "-fx-text-fill: white;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;"
+        // Queue container
+        VBox queueBox = new VBox(10);
+        queueBox.setAlignment(Pos.CENTER);
+        queueBox.setStyle(
+                "-fx-border-color: #4a90e2;" +
+                        "-fx-border-width: 1;" +
+                        "-fx-border-radius: 6;" +
+                        "-fx-padding: 15;"
         );
+        queueBox.getChildren().addAll(queueLabel, radioButtonBox, aiLevelBox, connectionButton);
 
-        this.playerRadio = new RadioButton("Player");
-        this.playerRadio.setToggleGroup(gameTypeGroup);
-        this.playerRadio.setStyle(
-                "-fx-text-fill: white;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;"
-        );
-
-        this.radioButtonBox = new HBox(15);
-        this.radioButtonBox.setAlignment(Pos.CENTER);
-        this.radioButtonBox.getChildren().addAll(aiRadio, playerRadio);
-
+        // Display Game button (outside the groups)
         this.displayGame = new Button("Display Game");
         displayGame.setStyle(
                 "-fx-background-color: #4a90e2;" +
@@ -284,10 +352,8 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         this.gameBox = new VBox(15);
         this.gameBox.setAlignment(Pos.CENTER);
         this.gameBox.getChildren().addAll(
-                aiLevelBox,
-                depthBox,
-                connectionButton,
-                radioButtonBox,
+                aiSettingsBox,
+                queueBox,
                 displayGame
         );
 
@@ -298,8 +364,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         this.gameBox.setManaged(false);
         this.displayGame.setVisible(false);
         this.displayGame.setManaged(false);
-        this.radioButtonBox.setVisible(true);
-        this.radioButtonBox.setManaged(true);
 
         VBox centerWrapper = new VBox();
         centerWrapper.setAlignment(Pos.CENTER);
@@ -727,8 +791,18 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                 } else {
                     console.log("No legal moves available");
 
-                    if (game.isGameOver()) {
-                        console.log("Game is over: " + game.getStatus());
+                    MoveGenerator moveGen = new MoveGenerator();
+                    boolean inCheck = moveGen.isKingInCheck(game.getBoard(), game.isWhiteTurn());
+
+                    if (inCheck) {
+                        console.log("We are in checkmate - resigning");
+                    } else {
+                        console.log("Stalemate position - resigning anyway");
+                    }
+
+                    if (currentGameId != null) {
+                        console.log("Resigning game: " + currentGameId);
+                        client.resignGame(currentGameId);
                     }
                     waitingForMoveResponse = false;
                 }
