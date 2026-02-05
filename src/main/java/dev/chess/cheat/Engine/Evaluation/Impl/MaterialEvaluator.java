@@ -17,12 +17,12 @@ import dev.chess.cheat.Simulation.Piece;
 public class MaterialEvaluator implements Evaluator {
 
     // Standard piece values (centipawns)
-    private static final int PAWN_VALUE = 100;
-    private static final int KNIGHT_VALUE = 320;
-    private static final int BISHOP_VALUE = 330;
-    private static final int ROOK_VALUE = 500;
-    private static final int QUEEN_VALUE = 900;
-    private static final int KING_VALUE = 20000;
+    public static final int PAWN_VALUE = 100;
+    public static final int KNIGHT_VALUE = 320;
+    public static final int BISHOP_VALUE = 330;
+    public static final int ROOK_VALUE = 500;
+    public static final int QUEEN_VALUE = 900;
+    public static final int KING_VALUE = 20000;
 
     @Override
     public double evaluate(Board board) {
@@ -44,7 +44,7 @@ public class MaterialEvaluator implements Evaluator {
     /**
      * Get the material value of a piece
      */
-    private int getPieceValue(Piece piece) {
+    public int getPieceValue(Piece piece) {
         if (piece == null) return 0;
 
         char symbol = Character.toLowerCase(piece.getSymbol());
