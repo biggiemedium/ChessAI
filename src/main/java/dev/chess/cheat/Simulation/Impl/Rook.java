@@ -28,12 +28,20 @@ public class Rook extends Piece {
         int currentRow = fromRow + rowDirection;
         int currentCol = fromCol + colDirection;
 
-        while (currentRow != toRow || currentCol != toCol) {
-            if (board[currentRow][currentCol] != null) {
-                return false; // Path blocked
+        if (isHorizontal) {
+            while (currentCol != toCol) {
+                if (board[currentRow][currentCol] != null) {
+                    return false;
+                }
+                currentCol += colDirection;
             }
-            currentRow += rowDirection;
-            currentCol += colDirection;
+        } else { // vertical
+            while (currentRow != toRow) {
+                if (board[currentRow][currentCol] != null) {
+                    return false;
+                }
+                currentRow += rowDirection;
+            }
         }
 
         return isValidDestination(board[toRow][toCol]);

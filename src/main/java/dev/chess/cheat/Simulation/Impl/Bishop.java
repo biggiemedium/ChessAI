@@ -31,7 +31,7 @@ public class Bishop extends Piece {
         int currentRow = fromRow + rowDirection;
         int currentCol = fromCol + colDirection;
 
-        while (currentRow != toRow && currentCol != toCol) {
+        while (currentRow != toRow ) { // && currentCol != toCol
             if (board[currentRow][currentCol] != null) {
                 return false; // Path blocked
             }

@@ -28,13 +28,22 @@ public class MoveGenerator {
                 }
 
                 List<Move> pseudoMoves = generatePieceMoves(board, fromRow, fromCol);
+
+                if (!pseudoMoves.isEmpty()) {
+                    System.out.println("Piece at " + (char)('a' + fromCol) + (8 - fromRow) + " (" + piece.getClass().getSimpleName() + "): " + pseudoMoves.size() + " pseudo-legal moves");
+                }
+
                 for (Move move : pseudoMoves) {
                     if (isLegalMove(board, move, isWhite)) {
                         legalMoves.add(move);
+
+                        System.out.println("  Legal: " + (char)('a' + move.getFromCol()) + (8 - move.getFromRow()) + " -> " + (char)('a' + move.getToCol()) + (8 - move.getToRow()));
                     }
                 }
             }
         }
+
+        System.out.println("Total legal moves: " + legalMoves.size());
 
         return legalMoves;
     }

@@ -56,6 +56,8 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
     private RadioButton playerRadio;
     private HBox radioButtonBox;
     private Button displayGame;
+    private Spinner<Integer> depthSpinner;
+    private Spinner<Integer> aiLevelSpinner;
 
     // Game state
     private boolean connected = false;
@@ -158,6 +160,40 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         centerBox.setAlignment(Pos.CENTER);
         centerBox.getChildren().addAll(tokenLabel, token, connectButton);
 
+        // ========== Game Settings ========== //
+
+        // AI Level Spinner
+        Label aiLevelLabel = new Label("AI Level:");
+        aiLevelLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        this.aiLevelSpinner = new Spinner<>(1, 8, 3); // min=1, max=8, initial=3
+        aiLevelSpinner.setEditable(true);
+        aiLevelSpinner.setPrefWidth(80);
+        aiLevelSpinner.setStyle(
+                "-fx-background-color: #1e1e1e;" +
+                        "-fx-text-fill: white;"
+        );
+
+        HBox aiLevelBox = new HBox(10);
+        aiLevelBox.setAlignment(Pos.CENTER);
+        aiLevelBox.getChildren().addAll(aiLevelLabel, aiLevelSpinner);
+
+        // Search Depth Spinner
+        Label depthLabel = new Label("Search Depth:");
+        depthLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        this.depthSpinner = new Spinner<>(1, 10, 3); // min=1, max=10, initial=3
+        depthSpinner.setEditable(true);
+        depthSpinner.setPrefWidth(80);
+        depthSpinner.setStyle(
+                "-fx-background-color: #1e1e1e;" +
+                        "-fx-text-fill: white;"
+        );
+
+        HBox depthBox = new HBox(10);
+        depthBox.setAlignment(Pos.CENTER);
+        depthBox.getChildren().addAll(depthLabel, depthSpinner);
+
         // Game box (queue button)
         this.connectionButton = new Button("Queue");
         connectionButton.setStyle(
@@ -247,7 +283,13 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
 
         this.gameBox = new VBox(15);
         this.gameBox.setAlignment(Pos.CENTER);
-        this.gameBox.getChildren().addAll(connectionButton, radioButtonBox, displayGame);
+        this.gameBox.getChildren().addAll(
+                aiLevelBox,
+                depthBox,
+                connectionButton,
+                radioButtonBox,
+                displayGame
+        );
 
         // Initial visibility setup
         this.centerBox.setVisible(true);
@@ -335,8 +377,9 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
             inGame = true;
 
             if (aiRadio.isSelected()) {
-                console.log("Challenging AI (Level 3, 5+0)...");
-                client.challengeAI(3, 5, 0);
+                int aiLevel = aiLevelSpinner.getValue();
+                console.log("Challenging AI (Level " + aiLevel + ", 5+0)...");
+                client.challengeAI(aiLevel, 5, 0);
             } else {
                 console.log("Player challenge not yet implemented");
                 inGame = false;
@@ -630,7 +673,11 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                 console.log("Board FEN: " + BoardUtils.toFEN(game.getBoard(), game.isWhiteTurn()));
 
                 console.log("Calculating best move...");
-                Move bestMove = game.getAIMove(3);
+
+                int searchDepth = depthSpinner.getValue();
+                console.log("Calculating best move (depth " + searchDepth + ")...");
+
+                Move bestMove = game.getAIMove(searchDepth);
 
                 if (game.isGameOver()) {
                     console.log("Game ended during calculation, not sending move");
