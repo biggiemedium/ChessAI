@@ -1,4 +1,4 @@
-package dev.chess.cheat.Evaluation;
+package dev.chess.cheat.Engine.Evaluation;
 
 import dev.chess.cheat.Simulation.Board;
 

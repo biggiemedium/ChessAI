@@ -1,11 +1,17 @@
 package dev.chess.cheat.Engine;
 
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Search.Algorithm;
 import dev.chess.cheat.Simulation.Board;
 
-import java.util.List;
-
+/**
+ * Dependencies
+ *
+ * {@link Algorithm}
+ * {@link dev.chess.cheat.Engine.Quiescence.QuiescenceSearch} for depth extension
+ * {@link dev.chess.cheat.Engine.Move.MoveGenerator} and {@link Move} for move logic
+ * {@link dev.chess.cheat.Engine.Ordering.MoveOrdering} for handing when we want to do/hold off on an attack/defence
+ */
 public class ChessEngine {
 
     private Algorithm currentAlgorithm;

@@ -1,6 +1,6 @@
 package dev.chess.cheat.Simulation.Runner;
 
-import dev.chess.cheat.Engine.Move;
+import dev.chess.cheat.Engine.Move.Move;
 import dev.chess.cheat.Simulation.GameStatus;
 
 import java.util.ArrayList;

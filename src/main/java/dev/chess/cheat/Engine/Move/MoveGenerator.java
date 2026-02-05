@@ -1,4 +1,4 @@
-package dev.chess.cheat.Engine;
+package dev.chess.cheat.Engine.Move;
 
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Impl.King;
@@ -147,6 +147,49 @@ public class MoveGenerator {
             }
         }
         return null;
+    }
+
+    /**
+     * Generate all capture positions. Used for {@link dev.chess.cheat.Engine.Quiescence.QuiescenceSearch}
+     *
+     * @param board
+     * @param isWhite
+     * @return
+     */
+    public List<Move> generateCaptureMoves(Board board, boolean isWhite) {
+        List<Move> captures = new ArrayList<>();
+
+        for (int fromRow = 0; fromRow < 8; fromRow++) {
+            for (int fromCol = 0; fromCol < 8; fromCol++) {
+
+                Piece piece = board.getPiece(fromRow, fromCol);
+                if (piece == null || piece.isWhite() != isWhite) {
+                    continue;
+                }
+
+                for (int toRow = 0; toRow < 8; toRow++) {
+                    for (int toCol = 0; toCol < 8; toCol++) {
+
+                        Piece target = board.getPiece(toRow, toCol);
+                        if (target == null || target.isWhite() == isWhite) {
+                            continue;
+                        }
+
+                        if (!piece.isValidMove(fromRow, fromCol, toRow, toCol, board.getPieces())) {
+                            continue;
+                        }
+
+                        Move move = new Move(fromRow, fromCol, toRow, toCol, target);
+
+                        if (isLegalMove(board, move, isWhite)) {
+                            captures.add(move);
+                        }
+                    }
+                }
+            }
+        }
+
+        return captures;
     }
 
 }

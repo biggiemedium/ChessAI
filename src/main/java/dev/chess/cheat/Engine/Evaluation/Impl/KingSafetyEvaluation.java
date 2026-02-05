@@ -1,6 +1,6 @@
-package dev.chess.cheat.Evaluation.Impl;
+package dev.chess.cheat.Engine.Evaluation.Impl;
 
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 
 /**

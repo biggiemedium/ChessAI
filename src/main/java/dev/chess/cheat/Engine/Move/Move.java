@@ -1,4 +1,4 @@
-package dev.chess.cheat.Engine;
+package dev.chess.cheat.Engine.Move;
 
 import dev.chess.cheat.Simulation.Piece;
 

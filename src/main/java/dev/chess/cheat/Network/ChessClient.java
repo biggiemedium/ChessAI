@@ -1,6 +1,7 @@
 package dev.chess.cheat.Network;
 
 import dev.chess.cheat.Engine.ChessEngine;
+import dev.chess.cheat.Engine.Move.Move;
 import dev.chess.cheat.Simulation.Game;
 
 import java.util.List;
@@ -152,7 +153,7 @@ public abstract class ChessClient {
      * @param move the move object
      * @return UCI string (e.g., "e2e4")
      */
-    protected abstract String moveToUCI(dev.chess.cheat.Engine.Move move);
+    protected abstract String moveToUCI(Move move);
 
     /**
      * Reset the current game state

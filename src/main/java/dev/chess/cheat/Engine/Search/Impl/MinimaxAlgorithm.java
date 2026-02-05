@@ -1,9 +1,9 @@
-package dev.chess.cheat.Engine.SearchLogic.Impl;
+package dev.chess.cheat.Engine.Search.Impl;
 
-import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Search.Algorithm;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 
 import java.util.List;
@@ -11,6 +11,7 @@ import java.util.List;
 /**
  * Basic Minimax algorithm without pruning
  *
+ * https://www.youtube.com/watch?v=l-hh51ncgDI
  */
 public class MinimaxAlgorithm extends Algorithm {
 

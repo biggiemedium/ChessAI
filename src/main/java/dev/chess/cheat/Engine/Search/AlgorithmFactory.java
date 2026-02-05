@@ -1,8 +1,8 @@
-package dev.chess.cheat.Engine.SearchLogic;
+package dev.chess.cheat.Engine.Search;
 
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Impl.*;
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Search.Impl.*;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
 
 import java.util.ArrayList;
 import java.util.List;

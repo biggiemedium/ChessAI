@@ -1,10 +1,13 @@
-package dev.chess.cheat.Engine.SearchLogic;
+package dev.chess.cheat.Engine.Search;
 
-import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 
+/**
+ * TODO: Add optional QuiescenceSearch for search algorithms that need it
+ */
 public abstract class Algorithm {
 
     protected final Evaluator evaluator;

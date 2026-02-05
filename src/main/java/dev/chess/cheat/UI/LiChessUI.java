@@ -1,14 +1,13 @@
 package dev.chess.cheat.UI;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.chess.cheat.Engine.ChessEngine;
-import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
-import dev.chess.cheat.Engine.SearchLogic.Impl.AlphaBetaAlgorithm;
-import dev.chess.cheat.Evaluation.MasterEvaluator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Search.Algorithm;
+import dev.chess.cheat.Engine.Search.AlgorithmFactory;
+import dev.chess.cheat.Engine.Search.Impl.AlphaBetaAlgorithm;
+import dev.chess.cheat.Engine.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Network.Impl.LiChessClient;
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Game;

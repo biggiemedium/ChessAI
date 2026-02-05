@@ -1,8 +1,8 @@
-package dev.chess.cheat.Evaluation;
+package dev.chess.cheat.Engine.Evaluation;
 
-import dev.chess.cheat.Evaluation.Impl.MaterialEvaluator;
-import dev.chess.cheat.Evaluation.Impl.PieceSquareTables;
-import dev.chess.cheat.Evaluation.Impl.PositionalEvaluator;
+import dev.chess.cheat.Engine.Evaluation.Impl.MaterialEvaluator;
+import dev.chess.cheat.Engine.Evaluation.Impl.PieceSquareTables;
+import dev.chess.cheat.Engine.Evaluation.Impl.PositionalEvaluator;
 import dev.chess.cheat.Simulation.Board;
 
 import java.util.ArrayList;

@@ -1,8 +1,8 @@
 package dev.chess.cheat.Simulation;
 
 import dev.chess.cheat.Engine.ChessEngine;
-import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
 import dev.chess.cheat.Simulation.Impl.*;
 
 import java.util.ArrayList;

@@ -900,9 +900,6 @@ public class LiChessClient {
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod(method);
 
-        System.out.println("Connecting to: " + API_BASE + endpoint);
-        System.out.println("Token present: " + (oauthToken != null && !oauthToken.isEmpty()));
-
         conn.setRequestProperty("Authorization", "Bearer " + oauthToken);
         conn.setRequestProperty("Accept", "application/json");
         return conn;

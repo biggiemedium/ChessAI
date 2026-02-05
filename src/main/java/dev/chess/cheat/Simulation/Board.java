@@ -1,6 +1,6 @@
 package dev.chess.cheat.Simulation;
 
-import dev.chess.cheat.Engine.Move;
+import dev.chess.cheat.Engine.Move.Move;
 import dev.chess.cheat.Simulation.Impl.*;
 
 /**

@@ -1,17 +1,26 @@
-package dev.chess.cheat.Engine.SearchLogic.Impl;
+package dev.chess.cheat.Engine.Search.Impl;
 
-import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Move.Move;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Quiescence.QuiescenceSearch;
+import dev.chess.cheat.Engine.Search.Algorithm;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
 import dev.chess.cheat.Simulation.Board;
 
 import java.util.List;
 
+/**
+ * https://www.youtube.com/watch?v=l-hh51ncgDI
+ */
 public class AlphaBetaAlgorithm extends Algorithm {
 
+    protected QuiescenceSearch quiescenceSearch;
+
+    // I get the vibe this could be done with a tree
+    // but that sounds like it would use an insane amount of RAM
     public AlphaBetaAlgorithm(Evaluator evaluator, MoveGenerator moveGenerator) {
         super(evaluator, moveGenerator);
+        this.quiescenceSearch = new QuiescenceSearch(evaluator, moveGenerator);
     }
 
     @Override
@@ -41,13 +50,15 @@ public class AlphaBetaAlgorithm extends Algorithm {
 
             board.undoMove(move);
 
-            if (isWhite) {
+            // Maximizing player (White)
+            if (isWhite) { // Starting at -infinity (max eval)
                 if (score > bestScore) {
                     bestScore = score;
                     bestMove = move;
                 }
                 alpha = Math.max(alpha, bestScore);
-            } else {
+            } else { // Minimizing player (Black)
+                // starting at infinity (minimum eval)
                 if (score < bestScore) {
                     bestScore = score;
                     bestMove = move;
@@ -62,8 +73,9 @@ public class AlphaBetaAlgorithm extends Algorithm {
     private double alphaBeta(Board board, int depth, double alpha, double beta, boolean isWhiteTurn) {
         nodesSearched++;
 
-        if (depth == 0) {
-            return evaluator.evaluate(board);
+        if(depth == 0) {
+            // return evaluator.evaluate(board);
+            return quiescenceSearch.searchCaptures(board, alpha, beta, isWhiteTurn);
         }
 
         List<Move> moves = moveGenerator.generateAllMoves(board, isWhiteTurn);

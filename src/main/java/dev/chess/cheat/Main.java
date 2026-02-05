@@ -12,6 +12,10 @@ import javafx.stage.Stage;
  *
  * https://cse.buffalo.edu/~regan/papers/pdf/RBZ14aaai.pdf
  * https://cse.buffalo.edu/~regan/papers/pdf/HRdF10.pdf
+ *
+ * TODO:
+ * Move LiChess Networking logic to Chariot
+ * https://github.com/tors42/chariot
  */
 public class Main extends Application {
     private static Stage primaryStage;
@@ -27,7 +31,7 @@ public class Main extends Application {
             System.exit(0);
         });
 
-        showLiChessUI();
+        showSimulationUI();
         primaryStage.show();
     }
 

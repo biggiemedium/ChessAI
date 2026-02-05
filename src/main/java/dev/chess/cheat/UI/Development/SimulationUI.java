@@ -1,10 +1,10 @@
 package dev.chess.cheat.UI.Development;
 
-import dev.chess.cheat.Engine.MoveGenerator;
-import dev.chess.cheat.Engine.SearchLogic.Algorithm;
-import dev.chess.cheat.Engine.SearchLogic.AlgorithmFactory;
-import dev.chess.cheat.Evaluation.Evaluator;
-import dev.chess.cheat.Evaluation.MasterEvaluator;
+import dev.chess.cheat.Engine.Move.MoveGenerator;
+import dev.chess.cheat.Engine.Search.Algorithm;
+import dev.chess.cheat.Engine.Search.AlgorithmFactory;
+import dev.chess.cheat.Engine.Evaluation.Evaluator;
+import dev.chess.cheat.Engine.Evaluation.MasterEvaluator;
 import dev.chess.cheat.Simulation.Runner.*;
 import dev.chess.cheat.UI.Viewer.AnalyticsViewer;
 import dev.chess.cheat.UI.Viewer.BoardViewer;
