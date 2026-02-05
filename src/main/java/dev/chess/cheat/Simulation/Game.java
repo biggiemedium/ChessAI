@@ -2,6 +2,7 @@ package dev.chess.cheat.Simulation;
 
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
+import dev.chess.cheat.Engine.MoveGenerator;
 import dev.chess.cheat.Simulation.Impl.*;
 
 import java.util.ArrayList;
@@ -282,7 +283,26 @@ public class Game {
     }
 
     public boolean isGameOver() {
-        return status != GameStatus.IN_PROGRESS;
+        if (status != GameStatus.IN_PROGRESS) {
+            return true;
+        }
+
+        MoveGenerator moveGen = new MoveGenerator();
+        List<Move> legalMoves = moveGen.generateAllMoves(board, isWhiteTurn);
+
+        if (legalMoves.isEmpty()) {
+            if (moveGen.isKingInCheck(board, isWhiteTurn)) {
+                status = isWhiteTurn ? GameStatus.BLACK_WINS : GameStatus.WHITE_WINS;
+                System.out.println("Checkmate detected - " + (isWhiteTurn ? "Black" : "White") + " wins");
+            } else {
+                status = GameStatus.STALEMATE;
+                System.out.println("Stalemate detected");
+            }
+            notifyListeners();
+            return true;
+        }
+
+        return false;
     }
 
     /**

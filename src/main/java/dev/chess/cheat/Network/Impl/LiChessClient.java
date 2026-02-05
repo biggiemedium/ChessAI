@@ -10,6 +10,7 @@ import dev.chess.cheat.Util.PropertyLoader;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
@@ -42,6 +43,8 @@ public class LiChessClient {
     private String currentGameColor; // "white" or "black"
     private boolean isOurTurn;
     private volatile boolean streaming = false;
+
+    private final Map<String, Boolean> activeGameStreams = new ConcurrentHashMap<>();
 
     public LiChessClient(String oauthToken) {
         this.oauthToken = oauthToken;
@@ -338,6 +341,8 @@ public class LiChessClient {
             throw new IllegalArgumentException("Callback cannot be null");
         }
 
+        activeGameStreams.put(gameId, true);
+
         executor.submit(() -> {
             try {
                 HttpURLConnection conn = httpConnection("/bot/game/stream/" + gameId, "GET");
@@ -347,7 +352,8 @@ public class LiChessClient {
                              new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
 
                     String line;
-                    while ((line = reader.readLine()) != null) {
+                    while (activeGameStreams.getOrDefault(gameId, true) &&
+                            (line = reader.readLine()) != null) {
                         if (line.isBlank()) continue;
 
                         JsonObject event = gson.fromJson(line, JsonObject.class);
@@ -367,6 +373,8 @@ public class LiChessClient {
                 }
             } catch (Exception e) {
                 callback.onError(gameId, e);
+            } finally {
+                activeGameStreams.remove(gameId);
             }
         });
 
@@ -948,6 +956,10 @@ public class LiChessClient {
         } catch (Exception e) {
             return value;
         }
+    }
+
+    public void stopGameStream(String gameId) {
+        activeGameStreams.put(gameId, false);
     }
 
     public String getOurUsername() {

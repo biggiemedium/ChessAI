@@ -11,6 +11,7 @@ import dev.chess.cheat.Network.Impl.LiChessClient;
 import dev.chess.cheat.Simulation.Board;
 import dev.chess.cheat.Simulation.Game;
 import dev.chess.cheat.UI.Viewer.ConsoleViewer;
+import dev.chess.cheat.Util.BoardUtils;
 import dev.chess.cheat.Util.Interface.ILiChessEvents;
 import dev.chess.cheat.Util.Interface.SceneMaker;
 import javafx.application.Platform;
@@ -24,6 +25,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 
 public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateListener, LiChessClient.GameStreamCallback {
 
@@ -59,6 +61,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
     private boolean connected = false;
     private boolean inGame = false;
     private volatile boolean waitingForMoveResponse = false;
+    private volatile int moveCountWhenStartedCalculating = -1;
 
     public LiChessUI(Stage stage) {
         this.stage = stage;
@@ -532,6 +535,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                 game.updateStatus(status, winner);
 
                 waitingForMoveResponse = false;
+                client.stopGameStream(gameId);
 
                 return; // Exit early -> don't try to make moves
             }
@@ -550,8 +554,19 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
 
         // Reset waiting flag when opponent makes a move
         if (moveCountAfter > moveCountBefore && isOurTurn) {
-            console.log("Opponent's move confirmed - ready to move");
+            if (moveCountAfter > moveCountWhenStartedCalculating) {
+                console.log("Opponent's move confirmed - ready to move");
+                waitingForMoveResponse = false;
+            } else {
+                console.log("Still waiting for our move to be confirmed");
+            }
+        }
+
+        if (game.isGameOver()) {
+            console.log("Game is over locally: " + game.getStatus());
             waitingForMoveResponse = false;
+            client.stopGameStream(gameId);
+            return;
         }
 
         // Make our move if it's our turn and we're not already calculating
@@ -604,9 +619,16 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
         }
 
         waitingForMoveResponse = true;
+        moveCountWhenStartedCalculating = game.getMoveCount();
+
 
         new Thread(() -> {
             try {
+                console.log("=== Current Board State ===");
+                console.log("Move count: " + game.getMoveCount());
+                console.log("White to move: " + game.isWhiteTurn());
+                console.log("Board FEN: " + BoardUtils.toFEN(game.getBoard(), game.isWhiteTurn()));
+
                 console.log("Calculating best move...");
                 Move bestMove = game.getAIMove(3);
 
@@ -618,6 +640,19 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
 
                 if (bestMove != null) {
                     String uci = game.moveToUCI(bestMove);
+
+                    if (game.getMoveCount() != moveCountWhenStartedCalculating) {
+                        console.log("Position changed during calculation (was " +
+                                moveCountWhenStartedCalculating + ", now " +
+                                game.getMoveCount() + ") - discarding move");
+                        waitingForMoveResponse = false;
+                        return;
+                    }
+
+                    console.log("Best move calculated: " + uci);
+                    console.log("From: " + (char)('a' + bestMove.getFromCol()) + (8 - bestMove.getFromRow()));
+                    console.log("To: " + (char)('a' + bestMove.getToCol()) + (8 - bestMove.getToRow()));
+
                     console.log("Playing move: " + uci);
 
                     if (game.isGameOver()) {
@@ -632,10 +667,22 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                         console.log("Move sent successfully");
                     } else {
                         console.log("Failed to send move");
-                        waitingForMoveResponse = false; // Reset on failure
+                        console.log("=== Legal moves available ===");
+                        List<Move> legalMoves = new MoveGenerator().generateAllMoves(
+                                game.getBoard(), game.isWhiteTurn()
+                        );
+                        for (Move m : legalMoves) {
+                            console.log("  " + game.moveToUCI(m));
+                        }
+
+                        waitingForMoveResponse = false;
                     }
                 } else {
                     console.log("No legal moves available");
+
+                    if (game.isGameOver()) {
+                        console.log("Game is over: " + game.getStatus());
+                    }
                     waitingForMoveResponse = false;
                 }
             } catch (Exception e) {
