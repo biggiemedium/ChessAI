@@ -4,29 +4,21 @@ import com.google.gson.JsonObject;
 
 public interface ILiChessEvents {
 
-    /**
-     * Called when a game starts
-     */
-    void onGameStart(String gameId, JsonObject gameData);
+    void onConnected(String username);
 
-    /**
-     * Called when a game finishes
-     */
-    void onGameFinish(String gameId, JsonObject gameData);
+    void onGameStarted(String gameId);
 
-    /**
-     * Called when a challenge is received
-     */
-    void onChallengeReceived(String challengeId, JsonObject challengeData);
+    void onGameFinished(String gameId);
 
-    /**
-     * Called when a challenge is canceled or declined
-     */
-    void onChallengeCanceled(String challengeId, JsonObject challengeData);
+    void onError(Throwable t);
 
-    /**
-     * Called when a challenge is accepted
-     */
-    void onChallengeAccepted(String challengeId, JsonObject challengeData);
+    default void onChallengeReceived(JsonObject challenge) {
+    }
+
+    default void onChallengeCanceled(String challengeId) {
+    }
+
+    default void onChallengeDeclined(String challengeId) {
+    }
 
 }

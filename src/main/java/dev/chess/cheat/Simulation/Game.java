@@ -2,7 +2,6 @@ package dev.chess.cheat.Simulation;
 
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
-import dev.chess.cheat.Network.ChessClient;
 import dev.chess.cheat.Simulation.Impl.*;
 
 import java.util.ArrayList;
@@ -13,7 +12,6 @@ public class Game {
 
     private final Board board;
     private final ChessEngine AI;
-    private final ChessClient client;
 
     // Game state
     private String gameId;
@@ -22,25 +20,20 @@ public class Game {
 
     // Move tracking
     private final List<Move> moveHistory;
-    private final List<Character> promotions; // Tracks which moves were promotions
+    private final List<Character> promotions;
 
     // Event listeners for UI updates
     private final List<GameUpdateListener> listeners;
 
-    // ========== Constructor ==========
-
-    public Game(Board board, List<Move> moveHistory, ChessEngine ai, ChessClient client) {
+    public Game(Board board, ChessEngine ai) {
         this.board = board;
-        this.moveHistory = new ArrayList<>(moveHistory);
         this.AI = ai;
-        this.client = client;
+        this.moveHistory = new ArrayList<>();
         this.isWhiteTurn = true;
         this.status = GameStatus.IN_PROGRESS;
         this.listeners = new CopyOnWriteArrayList<>();
         this.promotions = new ArrayList<>();
     }
-
-    // ========== Game State Management ==========
 
     /**
      * Reset game to starting position
@@ -76,8 +69,6 @@ public class Game {
         this.status = convertLiChessStatus(lichessStatus, winner);
         notifyListeners();
     }
-
-    // ========== Move Handling ==========
 
     /**
      * Parse and apply a single UCI move (e.g., "e2e4" or "e7e8q")
@@ -158,7 +149,37 @@ public class Game {
         board.setPiece(row, col, promoted);
     }
 
-    // ========== Status Conversion ==========
+    /**
+     * Get AI's best move for current position
+     */
+    public Move getAIMove(int depth) {
+        return AI.findBestMove(board, isWhiteTurn, depth);
+    }
+
+    /**
+     * Convert Move to UCI notation (e.g., "e2e4")
+     */
+    public String moveToUCI(Move move) {
+        if (move == null) return null;
+
+        char fromCol = (char) ('a' + move.getFromCol());
+        char fromRow = (char) ('8' - move.getFromRow());  // ✓ FIXED
+        char toCol = (char) ('a' + move.getToCol());
+        char toRow = (char) ('8' - move.getToRow());      // ✓ FIXED
+
+        String uci = "" + fromCol + fromRow + toCol + toRow;
+
+        Piece piece = board.getPiece(move.getToRow(), move.getToCol());
+        if (piece instanceof Pawn) {
+            if ((piece.isWhite() && move.getToRow() == 0) ||
+                    (!piece.isWhite() && move.getToRow() == 7)) {
+                uci += "q";
+            }
+        }
+
+        return uci;
+    }
+
 
     /**
      * Convert LiChess status string to GameStatus enum
@@ -201,8 +222,6 @@ public class Game {
         return GameStatus.DRAW;
     }
 
-    // ========== Event Listeners ==========
-
     /**
      * Add a listener for game state changes (for UI updates)
      */
@@ -226,28 +245,12 @@ public class Game {
         }
     }
 
-    // ========== Chat Handling ==========
-
-    /**
-     * Handle incoming chat message from LiChess
-     * Can be overridden or extended for custom behavior
-     */
-    public void onChatMessage(String username, String text, String room) {
-        System.out.println("[" + room + "] " + username + ": " + text);
-    }
-
-    // ========== Getters ==========
-
     public Board getBoard() {
         return board;
     }
 
     public ChessEngine getAI() {
         return AI;
-    }
-
-    public ChessClient getClient() {
-        return client;
     }
 
     public String getGameId() {
@@ -281,8 +284,6 @@ public class Game {
     public boolean isGameOver() {
         return status != GameStatus.IN_PROGRESS;
     }
-
-    // ========== Listener Interface ==========
 
     /**
      * Listener interface for game state updates

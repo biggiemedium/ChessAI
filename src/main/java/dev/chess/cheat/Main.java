@@ -27,7 +27,6 @@ public class Main extends Application {
             System.exit(0);
         });
 
-        //showSimulationUI();
         showLiChessUI();
         primaryStage.show();
     }

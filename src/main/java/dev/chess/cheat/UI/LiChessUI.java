@@ -1,7 +1,7 @@
 package dev.chess.cheat.UI;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.sun.javafx.scene.control.InputField;
 import dev.chess.cheat.Engine.ChessEngine;
 import dev.chess.cheat.Engine.Move;
 import dev.chess.cheat.Engine.MoveGenerator;
@@ -24,17 +24,18 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 
-public class LiChessUI implements SceneMaker, ILiChessEvents {
+public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateListener, LiChessClient.GameStreamCallback {
 
     private final Stage stage;
-
     private final ConsoleViewer console;
 
     // Simulation setup
     private LiChessClient client;
     private ChessEngine engine;
+    private Game game;
+    private String currentGameId;
+    private boolean isPlayingWhite; // Track which color we're playing
 
     // UI Components
     private Label connectionStatus;
@@ -47,29 +48,33 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
 
     // In Game components
     private VBox gameBox;
-    private Button connectionButton; // Toggle Connect/disconnect
+    private Button connectionButton;
     private ToggleGroup gameTypeGroup;
     private RadioButton aiRadio;
     private RadioButton playerRadio;
     private HBox radioButtonBox;
     private Button displayGame;
 
-
     // Game state
     private boolean connected = false;
     private boolean inGame = false;
+    private volatile boolean waitingForMoveResponse = false;
 
     public LiChessUI(Stage stage) {
         this.stage = stage;
         this.console = new ConsoleViewer();
+
+        // Initialize engine and game
         this.engine = new ChessEngine(new AlphaBetaAlgorithm(new MasterEvaluator(), new MoveGenerator()));
+        this.game = new Game(new Board(), engine);
+        this.game.addUpdateListener(this); // Listen to game updates
+
         console.log("============================");
         console.log(" ");
         console.log("         LICHESS BOT        ");
         console.log(" ");
         console.log("============================");
     }
-
 
     @Override
     public Scene createScene() {
@@ -125,7 +130,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-cursor: hand;"
         );
 
-        // Hover FX
         connectButton.setOnMouseEntered(e -> connectButton.setStyle(
                 "-fx-background-color: #357ABD;" +
                         "-fx-text-fill: white;" +
@@ -152,7 +156,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         centerBox.getChildren().addAll(tokenLabel, token, connectButton);
 
         // Game box (queue button)
-        this.connectionButton = new Button("Queue"); // Queue for game against AI or player
+        this.connectionButton = new Button("Queue");
         connectionButton.setStyle(
                 "-fx-background-color: #4a90e2;" +
                         "-fx-text-fill: white;" +
@@ -163,7 +167,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-cursor: hand;"
         );
 
-        // Hover FX
         connectionButton.setOnMouseEntered(e -> connectionButton.setStyle(
                 "-fx-background-color: #357ABD;" +
                         "-fx-text-fill: white;" +
@@ -182,38 +185,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-padding: 6 20;" +
                         "-fx-cursor: hand;"
         ));
-        this.connectionButton.setOnAction(actionEvent -> {
-            if (inGame) {
-                if (client.getCurrentGameId() != null) {
-                    client.resignGame(client.getCurrentGameId());
-                    console.log("Resigned from game " + client.getCurrentGameId());
-                }
-                client.closeConnection();
-                inGame = false;
-                connectionButton.setText("Queue");
-                radioButtonBox.setVisible(!inGame);
-                radioButtonBox.setManaged(!inGame);
-
-                displayGame.setVisible(inGame);
-                displayGame.setManaged(inGame);
-            } else {
-                inGame = true;
-                client.startGlobalEventStream(); // Start listening for game events
-                if (aiRadio.isSelected()) {
-                    client.challengeAI(3, 5, 0);
-                    console.log("Challenging ai... ");
-                } else {
-                    console.log("Player challenge not yet implemented");
-                    inGame = false;
-                    return;
-                }
-                connectionButton.setText("Disconnect");
-                radioButtonBox.setVisible(!inGame);
-                radioButtonBox.setManaged(!inGame);
-                displayGame.setVisible(inGame);
-                displayGame.setManaged(inGame);
-            }
-        });
+        this.connectionButton.setOnAction(actionEvent -> handleQueueButton());
 
         // Game type selection
         this.gameTypeGroup = new ToggleGroup();
@@ -235,7 +207,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-font-weight: bold;"
         );
 
-        // HBox for radio buttons with proper alignment
         this.radioButtonBox = new HBox(15);
         this.radioButtonBox.setAlignment(Pos.CENTER);
         this.radioButtonBox.getChildren().addAll(aiRadio, playerRadio);
@@ -251,7 +222,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-cursor: hand;"
         );
 
-        // Hover FX - Fixed to apply to displayGame button
         displayGame.setOnMouseEntered(e -> displayGame.setStyle(
                 "-fx-background-color: #357ABD;" +
                         "-fx-text-fill: white;" +
@@ -270,27 +240,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         "-fx-padding: 6 20;" +
                         "-fx-cursor: hand;"
         ));
-        this.displayGame.setOnAction(actionEvent -> {
-            if (!connected || client == null) {
-                console.log("Not connected to LiChess.");
-                return;
-            }
-
-            String gameId = client.getCurrentGameId();
-            if (gameId == null || gameId.isEmpty()) {
-                console.log("No active game to display.");
-                return;
-            }
-
-            try {
-                URI gameUri = new URI("https://lichess.org/" + gameId);
-                java.awt.Desktop.getDesktop().browse(gameUri);
-                console.log("Opened game: " + gameId);
-            } catch (IOException | URISyntaxException e) {
-                console.log("Failed to open game in browser.");
-                e.printStackTrace();
-            }
-        });
+        this.displayGame.setOnAction(actionEvent -> openGameInBrowser());
 
         this.gameBox = new VBox(15);
         this.gameBox.setAlignment(Pos.CENTER);
@@ -306,7 +256,6 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         this.radioButtonBox.setVisible(true);
         this.radioButtonBox.setManaged(true);
 
-
         VBox centerWrapper = new VBox();
         centerWrapper.setAlignment(Pos.CENTER);
         centerWrapper.setSpacing(10);
@@ -314,11 +263,12 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
         centerWrapper.getChildren().addAll(centerBox, gameBox);
 
         root.setLeft(centerWrapper);
-
         root.setStyle("-fx-background-color: #282424;");
-        return new Scene(root, 900, 500);
 
+        return new Scene(root, 900, 500);
     }
+
+    // ========== Connection Management ==========
 
     public void connect(String token) {
         if (token == null || token.isEmpty()) {
@@ -347,71 +297,362 @@ public class LiChessUI implements SceneMaker, ILiChessEvents {
                         console.log("Logged in as: " + username);
                     }
 
+                    client.startGlobalEventStream();
+
                     this.centerBox.setVisible(false);
                     this.centerBox.setManaged(false);
                     this.gameBox.setVisible(true);
                     this.gameBox.setManaged(true);
-                } else {
-                    this.connected = false;
-                    this.connectionStatus.setText("Connection failed");
-                    this.connectionStatus.setStyle("-fx-text-fill: red; -fx-font-size: 16px; -fx-font-weight: bold;");
-                    this.console.log("Failed to connect. Check your token.");
-
-                    this.centerBox.setVisible(true);
-                    this.centerBox.setManaged(true);
-                    this.gameBox.setVisible(false);
-                    this.gameBox.setManaged(false);
                 }
             });
         }).start();
-
     }
 
+    // ========== Game Management ==========
+
+    private void handleQueueButton() {
+        if (inGame) {
+            // Resign and disconnect
+            if (currentGameId != null) {
+                console.log("Resigning from game " + currentGameId);
+                client.resignGame(currentGameId);
+            }
+
+            inGame = false;
+            currentGameId = null;
+
+            Platform.runLater(() -> {
+                connectionButton.setText("Queue");
+                radioButtonBox.setVisible(true);
+                radioButtonBox.setManaged(true);
+                displayGame.setVisible(false);
+                displayGame.setManaged(false);
+            });
+        } else {
+            inGame = true;
+
+            if (aiRadio.isSelected()) {
+                console.log("Challenging AI (Level 3, 5+0)...");
+                client.challengeAI(3, 5, 0);
+            } else {
+                console.log("Player challenge not yet implemented");
+                inGame = false;
+                return;
+            }
+
+            Platform.runLater(() -> {
+                connectionButton.setText("Disconnect");
+                radioButtonBox.setVisible(false);
+                radioButtonBox.setManaged(false);
+            });
+        }
+    }
+
+    private void openGameInBrowser() {
+        if (!connected || client == null) {
+            console.log("Not connected to LiChess.");
+            return;
+        }
+
+        if (currentGameId == null || currentGameId.isEmpty()) {
+            console.log("No active game to display.");
+            return;
+        }
+
+        try {
+            URI gameUri = new URI("https://lichess.org/" + currentGameId);
+            java.awt.Desktop.getDesktop().browse(gameUri);
+            console.log("Opened game: " + currentGameId);
+        } catch (IOException | URISyntaxException e) {
+            console.log("Failed to open game in browser.");
+            e.printStackTrace();
+        }
+    }
+
+    // ========== ILiChessEvents Implementation ==========
 
     @Override
-    public void onGameStart(String gameId, JsonObject gameData) {
-        // Ignore game start events if we're not intentionally in a game
-        if (!inGame) {
-            console.log("Ignoring existing game: " + gameId);
+    public void onConnected(String username) {
+        Platform.runLater(() -> {
+            this.connected = true;
+            connectionStatus.setText("Connected");
+            connectionStatus.setStyle("-fx-text-fill: #00ff00; -fx-font-size: 16px; -fx-font-weight: bold;");
+
+            usernameDisplay.setText("Username: " + username);
+            usernameDisplay.setVisible(true);
+
+            centerBox.setVisible(false);
+            centerBox.setManaged(false);
+            gameBox.setVisible(true);
+            gameBox.setManaged(true);
+
+            console.log("Connected as " + username);
+        });
+    }
+
+    @Override
+    public void onGameStarted(String gameId) {
+        if (!inGame || currentGameId != null) {
+            console.log("Ignoring game event for: " + gameId);
+            return;
+        }
+
+        this.currentGameId = gameId;
+        this.game.reset();
+        this.game.setGameId(gameId);
+
+        String ourColor = client.getCurrentGameColor();
+        if (ourColor != null) {
+            this.isPlayingWhite = "white".equals(ourColor);
+            console.log("We are playing as: " + ourColor);
+        }
+
+        Platform.runLater(() -> {
+            connectionButton.setText("Disconnect");
+            radioButtonBox.setVisible(false);
+            radioButtonBox.setManaged(false);
+            displayGame.setVisible(true);
+            displayGame.setManaged(true);
+            console.log("Game started: " + gameId);
+        });
+
+        client.streamBotGame(gameId, this);
+    }
+
+    @Override
+    public void onGameFinished(String gameId) {
+        if (!gameId.equals(currentGameId)) {
+            console.log("Ignoring finished game event for: " + gameId);
             return;
         }
 
         Platform.runLater(() -> {
-            this.connectionButton.setText("Disconnect");
-            radioButtonBox.setVisible(!inGame);
-            radioButtonBox.setManaged(!inGame);
-            displayGame.setVisible(inGame);
-            displayGame.setManaged(inGame);
-            client.streamGame(gameId, this.engine);
-        });
-    }
+            console.log("Game finished: " + gameId);
 
-    @Override
-    public void onGameFinish(String gameId, JsonObject gameData) {
-        Platform.runLater(() -> {
+            inGame = false;
+            currentGameId = null;
+
+            connectionButton.setText("Queue");
+            radioButtonBox.setVisible(true);
+            radioButtonBox.setManaged(true);
             displayGame.setVisible(false);
-            this.inGame = false;
-            this.connectionButton.setText("Connect");
-            radioButtonBox.setVisible(!inGame);
-            radioButtonBox.setManaged(!inGame);
-            displayGame.setVisible(inGame);
-            displayGame.setManaged(inGame);
-            console.log("Disconnecting from game: " + gameId);
+            displayGame.setManaged(false);
         });
     }
 
     @Override
-    public void onChallengeReceived(String challengeId, JsonObject challengeData) {
-
+    public void onChallengeReceived(JsonObject challenge) {
+        console.log("Challenge received: " + challenge);
     }
 
     @Override
-    public void onChallengeCanceled(String challengeId, JsonObject challengeData) {
-
+    public void onChallengeCanceled(String challengeId) {
+        console.log("Challenge canceled: " + challengeId);
     }
 
     @Override
-    public void onChallengeAccepted(String challengeId, JsonObject challengeData) {
+    public void onChallengeDeclined(String challengeId) {
+        console.log("Challenge declined: " + challengeId);
+    }
 
+    @Override
+    public void onError(Throwable t) {
+        Platform.runLater(() -> {
+            console.log("LiChess error: " + t.getMessage());
+        });
+        t.printStackTrace();
+    }
+
+    // ========== GameStreamCallback Implementation ==========
+
+    @Override
+    public void onGameFull(String gameId, JsonObject gameFull) {
+        console.log("Received game full data");
+
+        // Extract our color from gameFull
+        if (gameFull.has("white") && gameFull.has("black")) {
+            JsonObject white = gameFull.getAsJsonObject("white");
+            JsonObject black = gameFull.getAsJsonObject("black");
+
+            String ourUsername = client.getOurUsername();
+
+            if (white.has("id") && white.get("id").getAsString().equals(ourUsername.toLowerCase())) {
+                isPlayingWhite = true;
+                console.log("We are playing WHITE");
+            } else if (black.has("id") && black.get("id").getAsString().equals(ourUsername.toLowerCase())) {
+                isPlayingWhite = false;
+                console.log("We are playing BLACK");
+            }
+        }
+
+        // Process initial state
+        if (gameFull.has("state")) {
+            JsonObject state = gameFull.getAsJsonObject("state");
+            processGameState(gameId, state);
+        }
+    }
+
+    @Override
+    public void onGameState(String gameId, JsonObject gameState) {
+        console.log("Received game state update for: " + gameId);
+
+        // gameState IS the state directly - no nested "state" field
+        // Don't try to extract color info - that's only in gameFull
+        processGameState(gameId, gameState);
+    }
+
+    private void processGameState(String gameId, JsonObject state) {
+        if (!gameId.equals(currentGameId)) return;
+
+        // Track the number of moves BEFORE updating
+        int moveCountBefore = game.getMoveCount();
+
+        // Extract moves and update local board
+        if (state.has("moves")) {
+            String movesStr = state.get("moves").getAsString();
+
+            if (!movesStr.isEmpty()) {
+                String[] moves = movesStr.split(" ");
+                console.log("Updating board with " + moves.length + " moves");
+                game.updateFromMoves(moves);
+            } else {
+                // No moves yet -> reset board
+                game.reset();
+            }
+        }
+
+        if (state.has("status")) {
+            String status = state.get("status").getAsString();
+
+            if (!"started".equals(status)) {
+                console.log("Game status: " + status);
+
+                // Update game status
+                String winner = state.has("winner") ? state.get("winner").getAsString() : null;
+                game.updateStatus(status, winner);
+
+                waitingForMoveResponse = false;
+
+                return; // Exit early -> don't try to make moves
+            }
+        }
+
+        // Track the number of moves AFTER updating
+        int moveCountAfter = game.getMoveCount();
+
+        // Determine whose turn it is
+        boolean isWhiteTurn = game.isWhiteTurn();
+        boolean isOurTurn = (isWhiteTurn == isPlayingWhite);
+
+        console.log("Turn: " + (isWhiteTurn ? "White" : "Black") +
+                " | Our turn: " + isOurTurn +
+                " | Moves: " + moveCountAfter);
+
+        // Reset waiting flag when opponent makes a move
+        if (moveCountAfter > moveCountBefore && isOurTurn) {
+            console.log("Opponent's move confirmed - ready to move");
+            waitingForMoveResponse = false;
+        }
+
+        // Make our move if it's our turn and we're not already calculating
+        if (isOurTurn && !game.isGameOver() && !waitingForMoveResponse) {
+            makeAIMove();
+        } else if (waitingForMoveResponse) {
+            console.log("Skipping move - already calculating/waiting");
+        } else if (game.isGameOver()) {
+            console.log("Game is over - not making a move");
+        }
+    }
+
+    @Override
+    public void onChatLine(String gameId, JsonObject chatLine) {
+        if (chatLine.has("username") && chatLine.has("text")) {
+            String username = chatLine.get("username").getAsString();
+            String text = chatLine.get("text").getAsString();
+            console.log("[Chat] " + username + ": " + text);
+        }
+    }
+
+    @Override
+    public void onOpponentGone(String gameId, JsonObject opponentGone) {
+        console.log("Opponent has left the game");
+    }
+
+    @Override
+    public void onError(String gameId, Throwable error) {
+        if (error.getMessage() != null && error.getMessage().contains("429")) {
+            console.log("Rate limited on game " + gameId + " - too many requests");
+            // Optionally retry with backoff
+        } else {
+            console.log("Game stream error: " + error.getMessage());
+            error.printStackTrace();
+        }
+    }
+
+    // ========== AI Move Logic ==========
+
+    private void makeAIMove() {
+        // Prevent duplicate move calculations
+        if (waitingForMoveResponse) {
+            console.log("Already calculating/sending a move, skipping...");
+            return;
+        }
+
+        if (game.isGameOver()) {
+            console.log("Game is over, not calculating move");
+            return;
+        }
+
+        waitingForMoveResponse = true;
+
+        new Thread(() -> {
+            try {
+                console.log("Calculating best move...");
+                Move bestMove = game.getAIMove(3);
+
+                if (game.isGameOver()) {
+                    console.log("Game ended during calculation, not sending move");
+                    waitingForMoveResponse = false;
+                    return;
+                }
+
+                if (bestMove != null) {
+                    String uci = game.moveToUCI(bestMove);
+                    console.log("Playing move: " + uci);
+
+                    if (game.isGameOver()) {
+                        console.log("Game ended before sending move");
+                        waitingForMoveResponse = false;
+                        return;
+                    }
+
+                    boolean success = client.makeBotMove(currentGameId, uci);
+
+                    if (success) {
+                        console.log("Move sent successfully");
+                    } else {
+                        console.log("Failed to send move");
+                        waitingForMoveResponse = false; // Reset on failure
+                    }
+                } else {
+                    console.log("No legal moves available");
+                    waitingForMoveResponse = false;
+                }
+            } catch (Exception e) {
+                console.log("Error making move: " + e.getMessage());
+                e.printStackTrace();
+                waitingForMoveResponse = false;
+            }
+        }).start();
+    }
+
+
+    // ========== Game Update Listener ==========
+
+    @Override
+    public void onGameUpdated(Game game) {
+        Platform.runLater(() -> {
+            console.log("Local game updated - Moves: " + game.getMoveCount() + " | Status: " + game.getStatus());
+        });
     }
 }
