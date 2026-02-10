@@ -1,5 +1,6 @@
 package dev.chess.cheat.Engine.Evaluation;
 
+import dev.chess.cheat.Engine.Evaluation.Impl.KingSafetyEvaluation;
 import dev.chess.cheat.Engine.Evaluation.Impl.MaterialEvaluator;
 import dev.chess.cheat.Engine.Evaluation.Impl.PieceSquareTables;
 import dev.chess.cheat.Engine.Evaluation.Impl.PositionalEvaluator;
@@ -18,6 +19,7 @@ public class MasterEvaluator implements Evaluator{
         addEvaluator(new MaterialEvaluator());
         addEvaluator(new PositionalEvaluator());
         addEvaluator(new PieceSquareTables());
+       // addEvaluator(new KingSafetyEvaluation());
     }
 
     public MasterEvaluator(List<Evaluator> evaluators) {

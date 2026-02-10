@@ -1,7 +1,9 @@
 package dev.chess.cheat;
 
+import dev.chess.cheat.UI.BotVsStockfishUI;
 import dev.chess.cheat.UI.Development.SimulationUI;
 import dev.chess.cheat.UI.LiChessUI;
+import dev.chess.cheat.UI.PlayerVsAIUI;
 import dev.chess.cheat.UI.TitleScreenUI;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -47,6 +49,16 @@ public class Main extends Application {
 
     private void showSimulationUI() {
         SimulationUI ui = new SimulationUI(primaryStage);
+        primaryStage.setScene(ui.createScene());
+    }
+
+    private void showPlayerVsAI() {
+        PlayerVsAIUI ui = new PlayerVsAIUI(primaryStage);
+        primaryStage.setScene(ui.createScene());
+    }
+
+    private void showBotVsStockfish() {
+        BotVsStockfishUI ui = new BotVsStockfishUI(primaryStage);
         primaryStage.setScene(ui.createScene());
     }
 

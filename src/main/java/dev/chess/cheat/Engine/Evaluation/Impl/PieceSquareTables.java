@@ -25,7 +25,8 @@ public class PieceSquareTables implements Evaluator {
             for (int col = 0; col < 8; col++) {
                 Piece piece = board.getPiece(row, col);
                 if (piece != null) {
-                    score += this.getValue(board, piece.getSymbol(), row, col, piece.isWhite());
+                    int value = this.getValue(board, piece.getSymbol(), row, col, piece.isWhite());
+                    score += piece.isWhite() ? value : -value; // oops
                 }
             }
         }
@@ -53,7 +54,7 @@ public class PieceSquareTables implements Evaluator {
             case 'r': return ROOK_TABLE[row][col];
             case 'q': return QUEEN_TABLE[row][col];
             case 'k': {
-                if(board.getPieces().length < 10) {
+                if(isEndgame(board)) {
                     return KING_TABLE_ENDGAME[row][col];
                 } else {
                     return KING_TABLE[row][col];
@@ -61,6 +62,37 @@ public class PieceSquareTables implements Evaluator {
             }
             default: return 0;
         }
+    }
+
+    /**
+     * Determine if the game is in endgame phase
+     *
+     * Flag true when queens are off the board or total material below threshold
+     */
+    private boolean isEndgame(Board board) {
+        int pieceCount = 0;
+        boolean whiteQueenPresent = false;
+        boolean blackQueenPresent = false;
+
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = board.getPiece(row, col);
+                if (piece != null) {
+                    pieceCount++;
+                    char symbol = Character.toLowerCase(piece.getSymbol());
+                    if (symbol == 'q') {
+                        if (piece.isWhite()) {
+                            whiteQueenPresent = true;
+                        } else {
+                            blackQueenPresent = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Endgame if -> both queens are gone OR very few pieces remain
+        return (!whiteQueenPresent && !blackQueenPresent) || pieceCount <= 10;
     }
 
     public static final int[][] PAWN_TABLE = {

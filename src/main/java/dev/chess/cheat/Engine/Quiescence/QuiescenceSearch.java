@@ -26,10 +26,20 @@ public class QuiescenceSearch {
     private final Evaluator evaluator;
     private final MaterialEvaluator materialEvaluator;
 
+    // Maximum depth for quiescence search to prevent infinite recursion
+    private static final int MAX_QUIESCENCE_DEPTH = 10;
+
     public QuiescenceSearch(Evaluator evaluator, MoveGenerator moveGenerator) {
         this.evaluator = evaluator;
         this.moveGenerator = moveGenerator;
         this.materialEvaluator = new MaterialEvaluator();
+    }
+
+    /**
+     * Entry point for quiescence search
+     */
+    public double searchCaptures(Board board, double alpha, double beta, boolean isWhiteTurn) {
+        return searchCaptures(board, alpha, beta, isWhiteTurn, MAX_QUIESCENCE_DEPTH);
     }
 
     // Lets do some testing...
@@ -49,7 +59,13 @@ public class QuiescenceSearch {
      * @param beta
      * @return
      */
-    public double searchCaptures(Board board, double alpha, double beta, boolean isWhiteTurn) {
+    private double searchCaptures(Board board, double alpha, double beta, boolean isWhiteTurn, int depth) {
+
+        // fix explosions
+        if (depth <= 0) {
+            return this.evaluator.evaluate(board);
+        }
+
         double standardPat = this.evaluator.evaluate(board);
 
         // Position is already too good for us -> no need to explore
@@ -91,7 +107,7 @@ public class QuiescenceSearch {
 
             // Were going to use a score similar to our search engine
             // This is technically alpha beta pruning search but with depth extension
-            double score = (-searchCaptures(board, -alpha, -beta, !isWhiteTurn));
+            double score = searchCaptures(board, alpha, beta, !isWhiteTurn, depth - 1);
 
             board.undoMove(move);
 
@@ -101,6 +117,7 @@ public class QuiescenceSearch {
                 return beta;
             }
 
+            // Update alpha
             if (score > alpha) {
                 alpha = score;
             }

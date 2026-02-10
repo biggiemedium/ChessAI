@@ -286,6 +286,13 @@ public class Game {
         }
     }
 
+    public void addMoveToHistory(Move move, Character promotion) {
+        moveHistory.add(move);
+        promotions.add(promotion);
+        isWhiteTurn = !isWhiteTurn;
+        notifyListeners();
+    }
+
     public Board getBoard() {
         return board;
     }
