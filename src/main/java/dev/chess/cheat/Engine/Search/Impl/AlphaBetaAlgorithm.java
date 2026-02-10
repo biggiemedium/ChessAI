@@ -91,6 +91,8 @@ public class AlphaBetaAlgorithm extends Algorithm {
             return 0;
         }
 
+        sortMoves(board, moves);
+
         if (isWhiteTurn) {
             double maxScore = Double.NEGATIVE_INFINITY;
             for (Move move : moves) {
