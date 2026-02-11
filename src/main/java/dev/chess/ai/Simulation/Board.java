@@ -3,6 +3,8 @@ package dev.chess.ai.Simulation;
 import dev.chess.ai.Engine.Move.Move;
 import dev.chess.ai.Simulation.Impl.*;
 
+import java.util.Random;
+
 /**
  * Chess boards use an 8x8 grid
  *
@@ -11,10 +13,24 @@ import dev.chess.ai.Simulation.Impl.*;
 public class Board {
 
     private Piece[][] pieces;
+    private long zobristHash;
+    private static final long[][][] pieceKeys = new long[64][12][2]; // [square][pieceType][color]
 
     public Board() {
         this.pieces = new Piece[8][8];
         initializeBoard();
+        initializeZobristHash();
+    }
+
+    static {
+        Random rand = new Random(12345);
+        for (int sq = 0; sq < 64; sq++) {
+            for (int piece = 0; piece < 12; piece++) {
+                for (int color = 0; color < 2; color++) {
+                    pieceKeys[sq][piece][color] = rand.nextLong();
+                }
+            }
+        }
     }
 
     private void initializeBoard() {
@@ -47,6 +63,38 @@ public class Board {
         pieces[7][7] = new Rook(true);
     }
 
+    private void initializeZobristHash() {
+        zobristHash = 0;
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = pieces[row][col];
+                if (piece != null) {
+                    int square = row * 8 + col;
+                    int pieceIndex = getPieceIndex(piece);
+                    int colorIndex = piece.isWhite() ? 0 : 1;
+                    zobristHash ^= pieceKeys[square][pieceIndex][colorIndex];
+                }
+            }
+        }
+    }
+
+    /**
+     * Map a piece to an index (0-11)
+     * 0=Pawn, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King (repeated for each color)
+     */
+    private int getPieceIndex(Piece piece) {
+        char symbol = Character.toLowerCase(piece.getSymbol());
+        switch (symbol) {
+            case 'p': return 0;
+            case 'n': return 1;
+            case 'b': return 2;
+            case 'r': return 3;
+            case 'q': return 4;
+            case 'k': return 5;
+            default: return 0;
+        }
+    }
+
     public Piece getPiece(int row, int col) {
         if (!isValidPosition(row, col)) {
             return null;
@@ -62,12 +110,45 @@ public class Board {
 
     public void movePiece(Move move) {
         Piece moving = getPiece(move.getFromRow(), move.getFromCol());
+        Piece captured = getPiece(move.getToRow(), move.getToCol());
+
+        if (moving == null) return;
+        int fromSquare = move.getFromRow() * 8 + move.getFromCol();
+        int toSquare = move.getToRow() * 8 + move.getToCol();
+        int pieceIndex = getPieceIndex(moving);
+        int colorIndex = moving.isWhite() ? 0 : 1;
+
+        this.zobristHash ^= pieceKeys[fromSquare][pieceIndex][colorIndex];
+        if (captured != null) {
+            int capturedIndex = getPieceIndex(captured);
+            int capturedColorIndex = captured.isWhite() ? 0 : 1;
+            zobristHash ^= pieceKeys[toSquare][capturedIndex][capturedColorIndex];
+        }
+        this.zobristHash ^= pieceKeys[toSquare][pieceIndex][colorIndex];
+
         setPiece(move.getToRow(), move.getToCol(), moving);
         setPiece(move.getFromRow(), move.getFromCol(), null);
     }
 
     public void undoMove(Move move) {
         Piece moving = getPiece(move.getToRow(), move.getToCol());
+        Piece captured = move.getCapturedPiece();
+
+        if (moving == null) return;
+
+        int fromSquare = move.getFromRow() * 8 + move.getFromCol();
+        int toSquare = move.getToRow() * 8 + move.getToCol();
+        int pieceIndex = getPieceIndex(moving);
+        int colorIndex = moving.isWhite() ? 0 : 1;
+
+        this.zobristHash ^= pieceKeys[toSquare][pieceIndex][colorIndex];
+        if (captured != null) {
+            int capturedIndex = getPieceIndex(captured);
+            int capturedColorIndex = captured.isWhite() ? 0 : 1;
+            zobristHash ^= pieceKeys[toSquare][capturedIndex][capturedColorIndex];
+        }
+        this.zobristHash ^= pieceKeys[fromSquare][pieceIndex][colorIndex];
+
         setPiece(move.getFromRow(), move.getFromCol(), moving);
         setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
     }
@@ -101,11 +182,13 @@ public class Board {
                 pieces[row][col] = null;
             }
         }
+        this.zobristHash = 0;
     }
 
     public void reset() {
         clear();
         initializeBoard();
+        initializeZobristHash();
     }
 
     public Piece[][] getPieces() {
@@ -118,5 +201,9 @@ public class Board {
 
     public static int algebraicToCol(String notation) {
         return notation.charAt(0) - 'a';
+    }
+
+    public long getZobristHash() {
+        return zobristHash;
     }
 }

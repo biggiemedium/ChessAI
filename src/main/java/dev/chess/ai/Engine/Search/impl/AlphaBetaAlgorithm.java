@@ -6,6 +6,8 @@ import dev.chess.ai.Engine.Move.MoveGenerator;
 import dev.chess.ai.Engine.Quiescence.QuiescenceSearch;
 import dev.chess.ai.Engine.Search.Algorithm;
 import dev.chess.ai.Engine.Evaluation.Evaluator;
+import dev.chess.ai.Engine.Table.TranspositionTable;
+import dev.chess.ai.Engine.Table.TranspositionTableEntry;
 import dev.chess.ai.Simulation.Board;
 
 import java.util.List;
@@ -17,6 +19,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
 
     protected QuiescenceSearch quiescenceSearch;
     private final MaterialEvaluator materialEvaluator;
+    private final TranspositionTable transpositionTable;
 
     // I get the vibe this could be done with a tree
     // but that sounds like it would use an insane amount of RAM
@@ -24,6 +27,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
         super(evaluator, moveGenerator);
         this.quiescenceSearch = new QuiescenceSearch(evaluator, moveGenerator);
         this.materialEvaluator = new MaterialEvaluator();
+        this.transpositionTable = new TranspositionTable(1_000_000); // 1 million entries
     }
 
     @Override
@@ -32,7 +36,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
 
         List<Move> moves = moveGenerator.generateAllMoves(board, isWhite);
         if (moves.isEmpty()) {
-            return null;
+            return null; // game over -> checkmate / stalemate already happened
         }
 
         sortMoves(board, moves);
@@ -42,6 +46,8 @@ public class AlphaBetaAlgorithm extends Algorithm {
         double alpha = Double.NEGATIVE_INFINITY;
         double beta = Double.POSITIVE_INFINITY;
 
+        // Root node of our "Tree", don't prune here
+        // remember this class is basically a tree data structure without nodes or ADT type class
         for (Move move : moves) {
             board.movePiece(move);
 
@@ -75,12 +81,31 @@ public class AlphaBetaAlgorithm extends Algorithm {
         return bestMove;
     }
 
+    /**
+     *  When alpha >= beta -> we can stop early (pruning)
+     */
     private double alphaBeta(Board board, int depth, double alpha, double beta, boolean isWhiteTurn) {
         nodesSearched++;
 
+        long zobristHash = board.getZobristHash();
+        TranspositionTableEntry entry = transpositionTable.probe(zobristHash);
+        if (entry != null && entry.depth >= depth) {
+            if (entry.flag == 0) {
+                return entry.score;
+            } else if (entry.flag == 1) {
+                alpha = Math.max(alpha, entry.score);
+            } else if (entry.flag == 2) {
+                beta = Math.min(beta, entry.score);
+            }
+
+            if (alpha >= beta) {
+                return entry.score;
+            }
+        }
+
         if(depth == 0) {
             //return evaluator.evaluate(board);
-            return quiescenceSearch.searchCaptures(board, alpha, beta, isWhiteTurn);
+            return quiescenceSearch.searchCaptures(board, alpha, beta, isWhiteTurn); // better search
         }
 
         List<Move> moves = moveGenerator.generateAllMoves(board, isWhiteTurn);
@@ -91,7 +116,11 @@ public class AlphaBetaAlgorithm extends Algorithm {
             return 0;
         }
 
+        // Filter for good moves first -> finds our cutoff thresholds earlier
         sortMoves(board, moves);
+
+        double originalAlpha = alpha;
+        Move bestMove = null;
 
         if (isWhiteTurn) {
             double maxScore = Double.NEGATIVE_INFINITY;
@@ -107,6 +136,10 @@ public class AlphaBetaAlgorithm extends Algorithm {
                     break;
                 }
             }
+
+            byte flag = maxScore <= originalAlpha ? (byte) 2 : maxScore >= beta ? (byte) 1 : (byte) 0;
+            transpositionTable.store(zobristHash, (int)maxScore, depth, flag, bestMove, (byte)0);
+
             return maxScore;
         } else {
             double minScore = Double.POSITIVE_INFINITY;
@@ -122,6 +155,10 @@ public class AlphaBetaAlgorithm extends Algorithm {
                     break;
                 }
             }
+            byte flag = minScore <= originalAlpha ? (byte) 2 :
+                    minScore >= beta ? (byte) 1 : (byte) 0;
+            transpositionTable.store(zobristHash, (int)minScore, depth, flag, bestMove, (byte)0);
+
             return minScore;
         }
     }
@@ -145,27 +182,23 @@ public class AlphaBetaAlgorithm extends Algorithm {
     /**
      * Calculate a heuristic score for move ordering
      * Higher scores are searched first to maximize alpha-beta cutoffs
-     *
-     * @param board current board state
-     * @param move the move to score
-     * @return heuristic score for ordering
      */
     private int getMoveOrderingScore(Board board, Move move) {
         int score = 0;
 
+        // if we found this was our best move last time -> try it first
+        TranspositionTableEntry entry = transpositionTable.probe(board.getZobristHash());
+        if (entry != null && entry.bestMove != null && entry.bestMove.equals(move)) {
+            score += 20000; // Highest priority (Descending ?)
+        }
+
         // Prioritize captures -> use MVV-LVA
         if (move.getCapturedPiece() != null) {
             int victimValue = materialEvaluator.getPieceValue(move.getCapturedPiece());
-            int attackerValue = materialEvaluator.getPieceValue(
-                    board.getPiece(move.getFromRow(), move.getFromCol())
-            );
+            int attackerValue = materialEvaluator.getPieceValue(board.getPiece(move.getFromRow(), move.getFromCol()));
 
-            // Most Valuable Victim - Least Valuable Attacker
-            // Multiply victim by 10 to prioritize capture value over attacker value
-            score += victimValue * 10 - attackerValue;
+            score += 10000 + victimValue * 10 - attackerValue;
         }
-
-        // TODO: Add bonus for checks, promotions, castling, etc.
 
         return score;
     }
