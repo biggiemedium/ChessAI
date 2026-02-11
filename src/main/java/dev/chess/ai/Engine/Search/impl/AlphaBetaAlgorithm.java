@@ -165,12 +165,15 @@ public class AlphaBetaAlgorithm extends Algorithm {
 
     /**
      * Sort moves to improve alpha-beta pruning efficiency
-     * Prioritizes captures using MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+     *
+     * Java uses TimSort
+     * Time complexity: O(n log n)
+     * Space complexity: O(n) -> Due to Timsort
      *
      * @param board current board state
      * @param moves list of moves to sort (modified in place)
      */
-    private void sortMoves(Board board, List<Move> moves) {
+    private void sortMoves(Board board, List<Move> moves) { // TODO: USE {@link MoveOrdering} INSTEAD
         moves.sort((m1, m2) -> {
             int score1 = getMoveOrderingScore(board, m1);
             int score2 = getMoveOrderingScore(board, m2);

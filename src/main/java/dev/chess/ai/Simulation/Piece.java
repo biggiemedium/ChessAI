@@ -1,6 +1,7 @@
 package dev.chess.ai.Simulation;
 
 public abstract class Piece {
+
     protected final boolean isWhite;
 
     public Piece(boolean isWhite) {

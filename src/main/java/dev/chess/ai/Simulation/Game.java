@@ -334,7 +334,7 @@ public class Game {
             return true;
         }
 
-        MoveGenerator moveGen = new MoveGenerator();
+        MoveGenerator moveGen = new MoveGenerator(board);
         List<Move> legalMoves = moveGen.generateAllMoves(board, isWhiteTurn);
 
         if (legalMoves.isEmpty()) {

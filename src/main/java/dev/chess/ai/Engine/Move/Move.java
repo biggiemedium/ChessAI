@@ -9,7 +9,7 @@ public class Move {
     private final int toRow;
     private final int toCol;
     private Piece capturedPiece;
-    private double score;
+    private int score;
 
     public Move(int fromRow, int fromCol, int toRow, int toCol) {
         this(fromRow, fromCol, toRow, toCol, null, 0);
@@ -19,7 +19,7 @@ public class Move {
         this(fromRow, fromCol, toRow, toCol, capturedPiece, 0);
     }
 
-    public Move(int fromRow, int fromCol, int toRow, int toCol, Piece capturedPiece, double score) {
+    public Move(int fromRow, int fromCol, int toRow, int toCol, Piece capturedPiece, int score) {
         this.fromRow = fromRow;
         this.fromCol = fromCol;
         this.toRow = toRow;
@@ -33,8 +33,8 @@ public class Move {
     public int getToRow() { return toRow; }
     public int getToCol() { return toCol; }
     public Piece getCapturedPiece() { return capturedPiece; }
-    public double getScore() { return score; }
-    public void setScore(double score) { this.score = score; }
+    public int getScore() { return score; }
+    public void setScore(int score) { this.score = score; }
 
     public void setCapturedPiece(Piece capturedPiece) { this.capturedPiece = capturedPiece; }
 

@@ -1,7 +1,6 @@
 package dev.chess.ai;
 
 import dev.chess.ai.UI.BotVsStockfishUI;
-import dev.chess.ai.UI.Development.SimulationUI;
 import dev.chess.ai.UI.LiChessUI;
 import dev.chess.ai.UI.PlayerVsAIUI;
 import dev.chess.ai.UI.TitleScreenUI;
@@ -44,11 +43,6 @@ public class Main extends Application {
 
     private void setTitleScreenUI() {
         TitleScreenUI ui = new TitleScreenUI(primaryStage);
-        primaryStage.setScene(ui.createScene());
-    }
-
-    private void showSimulationUI() {
-        SimulationUI ui = new SimulationUI(primaryStage);
         primaryStage.setScene(ui.createScene());
     }
 

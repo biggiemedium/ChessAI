@@ -26,7 +26,7 @@ public class GameRunner {
 
     public GameRunner() {
         this.board = new Board();
-        this.moveGenerator = new MoveGenerator();
+        this.moveGenerator = new MoveGenerator(board);
         this.isWhiteTurn = true;
         this.moveHistory = new ArrayList<>();
         this.status = GameStatus.IN_PROGRESS;
@@ -100,24 +100,6 @@ public class GameRunner {
 
     public List<Move> getLegalMoves() {
         return moveGenerator.generateAllMoves(board, isWhiteTurn);
-    }
-
-    public List<Move> getLegalMovesForPiece(int row, int col) {
-        Piece piece = board.getPiece(row, col);
-        if (piece == null || piece.isWhite() != isWhiteTurn) {
-            return new ArrayList<>();
-        }
-
-        List<Move> pieceMoves = moveGenerator.generatePieceMoves(board, row, col);
-        List<Move> legalMoves = new ArrayList<>();
-
-        for (Move move : pieceMoves) {
-            if (moveGenerator.isLegalMove(board, move, isWhiteTurn)) {
-                legalMoves.add(move);
-            }
-        }
-
-        return legalMoves;
     }
 
     public Move makeEngineMove(Algorithm algorithm, int depth) {

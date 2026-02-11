@@ -76,7 +76,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
 
         // Initialize engine and game
         this.algorithmFactory = new AlgorithmFactory();
-        this.engine = new ChessEngine(new AlphaBetaAlgorithm(new MasterEvaluator(), new MoveGenerator()));
+        this.engine = new ChessEngine(new AlphaBetaAlgorithm(new MasterEvaluator(), new MoveGenerator(new Board())));
         this.game = new Game(new Board(), engine);
         this.game.addUpdateListener(this); // Listen to game updates
 
@@ -190,7 +190,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
             Algorithm newAlgorithm = algorithmFactory.createAlgorithm(
                     selectedAlgorithm,
                     new MasterEvaluator(),
-                    new MoveGenerator()
+                    new MoveGenerator(game.getBoard())
             );
             engine.setAlgorithm(newAlgorithm);
             console.log("Algorithm changed to: " + selectedAlgorithm);
@@ -778,7 +778,8 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                     } else {
                         console.log("Failed to send move");
                         console.log("=== Legal moves available ===");
-                        List<Move> legalMoves = new MoveGenerator().generateAllMoves(
+                        MoveGenerator tempMoveGen = new MoveGenerator(game.getBoard());
+                        List<Move> legalMoves = tempMoveGen.generateAllMoves(
                                 game.getBoard(), game.isWhiteTurn()
                         );
                         for (Move m : legalMoves) {
@@ -790,7 +791,7 @@ public class LiChessUI implements SceneMaker, ILiChessEvents, Game.GameUpdateLis
                 } else {
                     console.log("No legal moves available");
 
-                    MoveGenerator moveGen = new MoveGenerator();
+                    MoveGenerator moveGen = new MoveGenerator(game.getBoard());
                     boolean inCheck = moveGen.isKingInCheck(game.getBoard(), game.isWhiteTurn());
 
                     if (inCheck) {
