@@ -38,7 +38,7 @@ import java.util.Map;
 public class BotVsStockfishUI implements SceneMaker, Game.GameUpdateListener {
     private final Stage stage;
     private final AlgorithmFactory algorithmFactory;
-    private final MoveGenerator moveGenerator;
+    private MoveGenerator moveGenerator;
     private final ConsoleViewer console;
     private Game game;
     private ChessEngine myEngine;
@@ -63,7 +63,6 @@ public class BotVsStockfishUI implements SceneMaker, Game.GameUpdateListener {
     public BotVsStockfishUI(Stage stage) {
         this.stage = stage;
         this.algorithmFactory = new AlgorithmFactory();
-        this.moveGenerator = new MoveGenerator();
         this.pieceImages = new HashMap<>();
         this.console = new ConsoleViewer();
         this.stockfish = new StockfishEngine();
@@ -96,6 +95,7 @@ public class BotVsStockfishUI implements SceneMaker, Game.GameUpdateListener {
         this.myEngine = new ChessEngine(algorithm);
         this.game = new Game(new Board(), myEngine);
         this.game.addUpdateListener(this);
+        this.moveGenerator = new MoveGenerator(game.getBoard());
         console.log("Game initialized");
     }
 

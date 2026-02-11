@@ -8,6 +8,8 @@ import dev.chess.ai.Simulation.Piece;
  * Chess piece values indicate the value of the different chess pieces and how they relate to each other.
  * Every piece has different strengths and weaknesses, so they are valued differently
  *
+ * IMPORTANT: THIS CLASS SETS THE CURRENT EVALUATION LEVEL
+ *
  * Chess Values:
  * https://www.chess.com/terms/chess-piece-value
  *
@@ -28,6 +30,7 @@ public class MaterialEvaluator implements Evaluator {
     public double evaluate(Board board) {
         double score = 0;
 
+        // O(n^2)
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
                 Piece piece = board.getPiece(row, col);

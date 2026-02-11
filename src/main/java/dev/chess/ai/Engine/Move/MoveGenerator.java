@@ -15,39 +15,8 @@ import java.util.List;
  */
 public class MoveGenerator {
 
-    /**
-     * Cache king positions in Board to speed up isKingInCheck
-     *
-     * We were doing enormous checks for nothing
-     */
-    private int whiteKingRow, whiteKingCol;
-    private int blackKingRow, blackKingCol;
-
     public MoveGenerator(Board board) {
-        updateKingPositions(board);
-    }
 
-    /**
-     * Updates cached values of the kings position
-     *
-     * @param board
-     */
-    public void updateKingPositions(Board board) {
-        Piece[][] grid = board.getPieces();
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                Piece p = grid[row][col];
-                if (p instanceof King) {
-                    if (p.isWhite()) {
-                        whiteKingRow = row;
-                        whiteKingCol = col;
-                    } else {
-                        blackKingRow = row;
-                        blackKingCol = col;
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -122,10 +91,8 @@ public class MoveGenerator {
      * Check if the king of the given color is in check
      */
     public boolean isKingInCheck(Board board, boolean isWhite) {
-        int kingRow = isWhite ? whiteKingRow : blackKingRow;
-        int kingCol = isWhite ? whiteKingCol : blackKingCol;
-
-        return isSquareAttacked(board, kingRow, kingCol, isWhite);
+        int[] kingPos = board.getKingPosition(isWhite);
+        return isSquareAttacked(board, kingPos[0], kingPos[1], isWhite);
     }
 
     private boolean isSquareAttacked(Board board, int targetRow, int targetCol, boolean isWhite) {
@@ -219,21 +186,17 @@ public class MoveGenerator {
         Piece captured = board.getPiece(toRow, toCol); // Get from board -> NOT FROM MOVE
 
         // King positioning updates -> cache ts
-        int oldKingRow = isWhite ? whiteKingRow : blackKingRow;
-        int oldKingCol = isWhite ? whiteKingCol : blackKingCol;
+        int[] kingPos = board.getKingPosition(isWhite);
+        int oldKingRow = kingPos[0];
+        int oldKingCol = kingPos[1];
 
         // Make move
         board.setPiece(toRow, toCol, moving);
         board.setPiece(fromRow, fromCol, null);
 
+        // cache update
         if (moving instanceof King) {
-            if (isWhite) {
-                whiteKingRow = toRow;
-                whiteKingCol = toCol;
-            } else {
-                blackKingRow = toRow;
-                blackKingCol = toCol;
-            }
+            board.setKingPosition(isWhite, toRow, toCol);
         }
 
         boolean kingInCheck = isKingInCheck(board, isWhite);
@@ -243,15 +206,8 @@ public class MoveGenerator {
         board.setPiece(toRow, toCol, captured);
 
         if (moving instanceof King) {
-            if (isWhite) {
-                whiteKingRow = oldKingRow;
-                whiteKingCol = oldKingCol;
-            } else {
-                blackKingRow = oldKingRow;
-                blackKingCol = oldKingCol;
-            }
+            board.setKingPosition(isWhite, oldKingRow, oldKingCol);
         }
-
 
         return !kingInCheck;
     }

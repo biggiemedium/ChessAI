@@ -1,14 +1,14 @@
 package dev.chess.ai.Engine.Evaluation;
 
 import dev.chess.ai.Engine.Evaluation.impl.Material.MaterialEvaluator;
+import dev.chess.ai.Engine.Evaluation.impl.Position.PawnPassEvaluator;
 import dev.chess.ai.Engine.Evaluation.impl.Position.PieceSquareTables;
-import dev.chess.ai.Engine.Evaluation.impl.Position.PositionalEvaluator;
 import dev.chess.ai.Simulation.Board;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MasterEvaluator implements Evaluator{
+public class MasterEvaluator implements Evaluator {
 
     private final List<Evaluator> evaluators;
 
@@ -16,9 +16,9 @@ public class MasterEvaluator implements Evaluator{
         this.evaluators = new ArrayList<>();
 
         addEvaluator(new MaterialEvaluator());
-        addEvaluator(new PositionalEvaluator());
+        addEvaluator(new PawnPassEvaluator());
         addEvaluator(new PieceSquareTables());
-       // addEvaluator(new KingSafetyEvaluation());
+        // addEvaluator(new KingSafetyEvaluation());
     }
 
     public MasterEvaluator(List<Evaluator> evaluators) {

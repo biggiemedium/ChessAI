@@ -16,10 +16,15 @@ public class Board {
     private long zobristHash;
     private static final long[][][] pieceKeys = new long[64][12][2]; // [square][pieceType][color]
 
+    // King Cache -> moved from MoveGenerator bc I don't want an instance of it here
+    private int whiteKingRow = 7, whiteKingCol = 4;
+    private int blackKingRow = 0, blackKingCol = 4;
+
     public Board() {
         this.pieces = new Piece[8][8];
         initializeBoard();
         initializeZobristHash();
+        initializeKingPositions();
     }
 
     static {
@@ -31,6 +36,28 @@ public class Board {
                 }
             }
         }
+    }
+
+    private void initializeKingPositions() {
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece p = pieces[row][col];
+                if (p instanceof King) {
+                    if (p.isWhite()) {
+                        whiteKingRow = row;
+                        whiteKingCol = col;
+                    } else {
+                        blackKingRow = row;
+                        blackKingCol = col;
+                    }
+                }
+            }
+        }
+    }
+
+    public int[] getKingPosition(boolean isWhite) {
+        return isWhite ? new int[]{whiteKingRow, whiteKingCol}
+                : new int[]{blackKingRow, blackKingCol};
     }
 
     private void initializeBoard() {
@@ -128,6 +155,16 @@ public class Board {
 
         setPiece(move.getToRow(), move.getToCol(), moving);
         setPiece(move.getFromRow(), move.getFromCol(), null);
+
+        if (moving instanceof King) {
+            if (moving.isWhite()) {
+                whiteKingRow = move.getToRow();
+                whiteKingCol = move.getToCol();
+            } else {
+                blackKingRow = move.getToRow();
+                blackKingCol = move.getToCol();
+            }
+        }
     }
 
     public void undoMove(Move move) {
@@ -151,6 +188,16 @@ public class Board {
 
         setPiece(move.getFromRow(), move.getFromCol(), moving);
         setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
+
+        if (moving instanceof King) {
+            if (moving.isWhite()) {
+                whiteKingRow = move.getFromRow();
+                whiteKingCol = move.getFromCol();
+            } else {
+                blackKingRow = move.getFromRow();
+                blackKingCol = move.getFromCol();
+            }
+        }
     }
 
     public boolean movePiece(int fromRow, int fromCol, int toRow, int toCol) {
@@ -172,6 +219,16 @@ public class Board {
         return true;
     }
 
+    public void setKingPosition(boolean isWhite, int row, int col) {
+        if (isWhite) {
+            whiteKingRow = row;
+            whiteKingCol = col;
+        } else {
+            blackKingRow = row;
+            blackKingCol = col;
+        }
+    }
+
     public boolean isValidPosition(int row, int col) {
         return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
@@ -183,12 +240,15 @@ public class Board {
             }
         }
         this.zobristHash = 0;
+        this.whiteKingRow = this.whiteKingCol = -1;
+        this.blackKingRow = this.blackKingCol = -1;
     }
 
     public void reset() {
         clear();
         initializeBoard();
         initializeZobristHash();
+        initializeKingPositions();
     }
 
     public Piece[][] getPieces() {
