@@ -5,6 +5,7 @@ import dev.chess.ai.Simulation.Impl.King;
 import dev.chess.ai.Simulation.Impl.Knight;
 import dev.chess.ai.Simulation.Impl.Pawn;
 import dev.chess.ai.Simulation.Piece;
+import dev.chess.ai.Util.Math.PiecePosition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,10 @@ import java.util.List;
  * @since 2/10/2026
  */
 public class MoveGenerator {
+
+    public MoveGenerator() {
+
+    }
 
     public MoveGenerator(Board board) {
 
@@ -28,18 +33,14 @@ public class MoveGenerator {
      */
     public List<Move> generateAllMoves(Board board, boolean isWhite) {
         List<Move> legalMoves = new ArrayList<>();
+        List<PiecePosition> pieces = board.getPieceCache().getList(isWhite);
 
-        for (int fromRow = 0; fromRow < 8; fromRow++) {
-            for (int fromCol = 0; fromCol < 8; fromCol++) {
+        for (PiecePosition piecePos : pieces) {
+            int fromRow = piecePos.getRow();
+            int fromCol = piecePos.getCol();
+            Piece piece = piecePos.getPiece();
 
-                Piece piece = board.getPiece(fromRow, fromCol);
-                if (piece == null || piece.isWhite() != isWhite) {
-                    continue;
-                }
-
-                generatePieceMoves(board, fromRow, fromCol, piece, legalMoves, isWhite);
-
-            }
+            generatePieceMoves(board, fromRow, fromCol, piece, legalMoves, isWhite);
         }
 
         return legalMoves;
@@ -139,21 +140,23 @@ public class MoveGenerator {
             }
         }
 
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                Piece enemy = grid[row][col];
-                if (enemy == null || enemy.isWhite() == isWhite) {
-                    continue;
-                }
-                // we already checked this -> skip
-                if (enemy instanceof Knight || enemy instanceof Pawn || enemy instanceof King) {
-                    continue;
-                }
-                if (enemy.isValidMove(row, col, targetRow, targetCol, grid)) {
-                    return true;
-                }
+        List<PiecePosition> enemyPieces = board.getPieceCache().getList(!isWhite);
+        for (PiecePosition enemyPos : enemyPieces) {
+            Piece enemy = enemyPos.getPiece();
+
+            // we already checked this -> skip
+            if (enemy instanceof Knight || enemy instanceof Pawn || enemy instanceof King) {
+                continue;
+            }
+
+            int row = enemyPos.getRow();
+            int col = enemyPos.getCol();
+
+            if (enemy.isValidMove(row, col, targetRow, targetCol, grid)) {
+                return true;
             }
         }
+
 
         return false;
     }
@@ -176,7 +179,6 @@ public class MoveGenerator {
      * Check if a move is legal (doesn't leave own king in check)
      */
     public boolean isLegalMove(Board board, Move move, boolean isWhite) {
-        // Store original positions
         int fromRow = move.getFromRow();
         int fromCol = move.getFromCol();
         int toRow = move.getToRow();
@@ -190,9 +192,10 @@ public class MoveGenerator {
         int oldKingRow = kingPos[0];
         int oldKingCol = kingPos[1];
 
-        // Make move
-        board.setPiece(toRow, toCol, moving);
-        board.setPiece(fromRow, fromCol, null);
+        // Keep this here so it doesn't update our cache when we are calculating temp moves
+        Piece[][] grid = board.getPieces();
+        grid[toRow][toCol] = moving;
+        grid[fromRow][fromCol] = null;
 
         // cache update
         if (moving instanceof King) {
@@ -201,9 +204,9 @@ public class MoveGenerator {
 
         boolean kingInCheck = isKingInCheck(board, isWhite);
 
-        // Undo move -> RESTORE IN REVERSE ORDER OR IT FUCKS IT
-        board.setPiece(fromRow, fromCol, moving);
-        board.setPiece(toRow, toCol, captured);
+        // undo our temp move
+        grid[fromRow][fromCol] = moving;
+        grid[toRow][toCol] = captured;
 
         if (moving instanceof King) {
             board.setKingPosition(isWhite, oldKingRow, oldKingCol);
@@ -223,52 +226,47 @@ public class MoveGenerator {
         List<Move> captures = new ArrayList<>();
         Piece[][] grid = board.getPieces();
 
-        for (int fromRow = 0; fromRow < 8; fromRow++) {
-            for (int fromCol = 0; fromCol < 8; fromCol++) {
+        List<PiecePosition> pieces = board.getPieceCache().getList(isWhite);
+        for (PiecePosition piecePos : pieces) {
+            int fromRow = piecePos.getRow();
+            int fromCol = piecePos.getCol();
+            Piece piece = piecePos.getPiece();
 
-                Piece piece = board.getPiece(fromRow, fromCol);
-                if (piece == null || piece.isWhite() != isWhite) {
-                    continue;
-                }
+            // optimal
+            if (piece instanceof Knight) {
+                int[][] knightMoves = {{-2,-1},{-2,1},{-1,-2},{-1,2},{1,-2},{1,2},{2,-1},{2,1}};
+                for (int[] offset : knightMoves) {
+                    int toRow = fromRow + offset[0];
+                    int toCol = fromCol + offset[1];
+                    if (!board.isValidPosition(toRow, toCol)) continue;
 
-                // optimal
-                if (piece instanceof Knight) {
-                    int[][] knightMoves = {{-2,-1},{-2,1},{-1,-2},{-1,2},{1,-2},{1,2},{2,-1},{2,1}};
-                    for (int[] offset : knightMoves) {
-                        int toRow = fromRow + offset[0];
-                        int toCol = fromCol + offset[1];
-                        if (!board.isValidPosition(toRow, toCol)) continue;
-
-                        Piece target = grid[toRow][toCol];
-                        if (target != null && target.isWhite() != isWhite &&
-                                piece.isValidMove(fromRow, fromCol, toRow, toCol, grid)) {
-
-                            Move move = new Move(fromRow, fromCol, toRow, toCol, target);
-                            if (isLegalMove(board, move, isWhite)) {
-                                captures.add(move);
-                            }
-                        }
-                    }
-                    continue;
-                }
-
-                for (int toRow = 0; toRow < 8; toRow++) {
-                    for (int toCol = 0; toCol < 8; toCol++) {
-
-                        Piece target = board.getPiece(toRow, toCol);
-                        if (target == null || target.isWhite() == isWhite) {
-                            continue;
-                        }
-
-                        if (!piece.isValidMove(fromRow, fromCol, toRow, toCol, board.getPieces())) {
-                            continue;
-                        }
+                    Piece target = grid[toRow][toCol];
+                    if (target != null && target.isWhite() != isWhite &&
+                            piece.isValidMove(fromRow, fromCol, toRow, toCol, grid)) {
 
                         Move move = new Move(fromRow, fromCol, toRow, toCol, target);
-
                         if (isLegalMove(board, move, isWhite)) {
                             captures.add(move);
                         }
+                    }
+                }
+                continue;
+            }
+
+            for (int toRow = 0; toRow < 8; toRow++) {
+                for (int toCol = 0; toCol < 8; toCol++) {
+                    Piece target = board.getPiece(toRow, toCol);
+                    if (target == null || target.isWhite() == isWhite) {
+                        continue;
+                    }
+
+                    if (!piece.isValidMove(fromRow, fromCol, toRow, toCol, grid)) {
+                        continue;
+                    }
+
+                    Move move = new Move(fromRow, fromCol, toRow, toCol, target);
+                    if (isLegalMove(board, move, isWhite)) {
+                        captures.add(move);
                     }
                 }
             }

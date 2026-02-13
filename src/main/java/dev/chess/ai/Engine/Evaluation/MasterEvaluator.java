@@ -16,7 +16,7 @@ public class MasterEvaluator implements Evaluator {
         this.evaluators = new ArrayList<>();
 
         addEvaluator(new MaterialEvaluator());
-        addEvaluator(new PawnPassEvaluator());
+        //addEvaluator(new PawnPassEvaluator()); // this breaks shit idk why
         addEvaluator(new PieceSquareTables());
         // addEvaluator(new KingSafetyEvaluation());
     }

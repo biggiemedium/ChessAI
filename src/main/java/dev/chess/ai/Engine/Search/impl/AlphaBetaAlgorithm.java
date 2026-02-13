@@ -149,7 +149,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
                 alpha = Math.max(alpha, score);
 
                 if (beta <= alpha) {
-                    if(move.getCapturedPiece() == null) {
+                    if (move.getCapturedPiece() == null) {
                         // update killer move
                         if (depth >= 0 && depth < killerMoves.length) {
                             if (!move.equals(killerMoves[depth][0])) {
@@ -186,7 +186,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
                 beta = Math.min(beta, score);
 
                 if (beta <= alpha) {
-                    if(move.getCapturedPiece() == null) {
+                    if (move.getCapturedPiece() == null) {
                         if (depth >= 0 && depth < killerMoves.length) {
                             if (!move.equals(killerMoves[depth][0])) {
                                 killerMoves[depth][1] = killerMoves[depth][0];
@@ -231,6 +231,7 @@ public class AlphaBetaAlgorithm extends Algorithm {
      * Calculate a heuristic score for move ordering
      * Higher scores are searched first to maximize alpha-beta cutoffs
      */
+    // TODO: Move to {@link MoveOrdering}
     private int getMoveOrderingScore(Board board, Move move, int depth) {
         int score = 0;
 
@@ -244,32 +245,37 @@ public class AlphaBetaAlgorithm extends Algorithm {
         if (move.getCapturedPiece() != null) {
             int victimValue = materialEvaluator.getPieceValue(move.getCapturedPiece());
             int attackerValue = materialEvaluator.getPieceValue(board.getPiece(move.getFromRow(), move.getFromCol()));
-            int captureScore = victimValue * 10 - attackerValue;
+            score = 10000 + (victimValue * 10 - attackerValue);
 
             // MVV-LVA -> prefer capturing valuable pieces with less valuable pieces
-            if (captureScore >= 0) {
-                score = 100_000 + captureScore;
-            } else {
-                // Losing capture -> get searched last
-                score = captureScore;
+            int seeScore = quiescenceSearch.staticExchangeEvaluation(board, move, board.getPiece(move.getFromRow(), move.getFromCol()).isWhite());
+            if (seeScore < 0) {
+                // This is a losing capture e.g -> (QxP defended by pawn)
+                // Score it low but not last
+                ///  for material values see {@link MaterialEvaluator}
+                score = -1000 + seeScore;
             }
-        } else {
+            return score;
+        }
 
-            // "killer" moves
-            if (depth >= 0 && depth < killerMoves.length) {
-                if (move.equals(killerMoves[depth][0])) {
-                    score = 90_000; // Kill 1
-                } else if (move.equals(killerMoves[depth][1])) {
-                    score = 80_000; // Killer 2
-                }
-            }
-
-            if (score == 0) {
-                int from = move.getFromRow() * 8 + move.getFromCol();
-                int to = move.getToRow() * 8 + move.getToCol();
-                score = historyScores[from][to];
+        // "killer" moves
+        if (depth >= 0 && depth < killerMoves.length) {
+            if (move.equals(killerMoves[depth][0])) {
+                return 9000; // Kill 1
+            } else if (move.equals(killerMoves[depth][1])) {
+                return 8000; // Killer 2
             }
         }
+
+        if (score == 0) {
+            int from = move.getFromRow() * 8 + move.getFromCol();
+            int to = move.getToRow() * 8 + move.getToCol();
+            score = historyScores[from][to];
+        }
+
+        int from = move.getFromRow() * 8 + move.getFromCol();
+        int to = move.getToRow() * 8 + move.getToCol();
+        score = historyScores[from][to];
 
         return score;
     }

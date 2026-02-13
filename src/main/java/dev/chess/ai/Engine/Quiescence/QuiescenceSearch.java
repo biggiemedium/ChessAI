@@ -6,6 +6,7 @@ import dev.chess.ai.Engine.Move.Move;
 import dev.chess.ai.Engine.Move.MoveGenerator;
 import dev.chess.ai.Simulation.Board;
 import dev.chess.ai.Simulation.Piece;
+import dev.chess.ai.Util.Math.PiecePosition;
 
 import java.util.List;
 
@@ -150,32 +151,119 @@ public class QuiescenceSearch {
      */
     // Skip obviously bad captures (e.g., QxP when pawn is defended by pawn)
     /// improved method -> calling {@link Piece#isValidMove} turns our program to O(64 x isValidMove) which is insane
+    // irrelevant because we moved our board over to caching  ^^
     private boolean isLosingCapture(Board board, Move move, boolean byWhite) {
         if (move.getCapturedPiece() == null) {
             return false; // not a capture piece
         }
 
-        Piece attacker = board.getPiece(move.getFromRow(), move.getFromCol());
-        int attackValue = this.materialEvaluator.getPieceValue(attacker);
-        int sacrificeValue = this.materialEvaluator.getPieceValue(move.getCapturedPiece());
-
-        // Only check if attacker is MORE valuable than victim
-        if (attackValue <= sacrificeValue) {
-            return false; // Equal or favorable trade -> keep
-        }
-        int cheapestDefenderValue = findCheapestDefender(
-                board,
-                move.getToRow(),
-                move.getToCol(),
-                byWhite
-        );
-
-        if (cheapestDefenderValue  == -1) return false; // No defender -> safe
-
-        // Losing if: (value of our attacker) > (value we capture + value of their recapture piece)
-        return attackValue > sacrificeValue + cheapestDefenderValue ;
+        // this is better than our old shitty MVV < MVA method
+        return staticExchangeEvaluation(board, move, byWhite) < 0;
     }
 
+    /**
+     * Use SEE Algorithm to account for if were going to get captured
+     * https://www.chessprogramming.org/Static_Exchange_Evaluation
+     * https://mediocrechess.blogspot.com/2007/03/guide-static-exchange-evaluation-see.html
+     *
+     * https://github.com/tildedave/ra-chess-engine/blob/main/static_exchange_eval.go
+     *
+     * @param board
+     * @param capture
+     * @param byWhite
+     * @return
+     */
+    public int staticExchangeEvaluation(Board board, Move capture, boolean byWhite) {
+        if (capture.getCapturedPiece() == null) {
+            return 0; // no capture
+        }
+
+        Piece attacker = board.getPiece(capture.getFromRow(), capture.getFromCol());
+        if (attacker == null) {
+            return 0;
+        }
+
+        int[] gain = new int[32];
+        int i = 0; // this will double as our depth
+
+        gain[i] = materialEvaluator.getPieceValue(capture.getCapturedPiece());
+        int attackerValue = materialEvaluator.getPieceValue(attacker);
+        boolean currentTurn = !byWhite; // defenders turn -> us = !us
+
+        board.movePiece(capture);
+        Move[] moveStack = new Move[32];
+        moveStack[0] = capture;
+
+        while (i < 31) { // because im retarded and can't figure out a simple out of bounds index error
+            i++;
+            PiecePosition cheapestAttacker = findCheapestAttacker(board, capture.getToRow(), capture.getToCol(), currentTurn);
+
+            if (cheapestAttacker == null) {
+                break; // No more attackers
+            }
+
+            Piece capturer = cheapestAttacker.getPiece();
+            int capturerValue = materialEvaluator.getPieceValue(capturer);
+            gain[i] = attackerValue - gain[i - 1];
+
+            Move recapture = new Move(
+                    cheapestAttacker.getRow(),
+                    cheapestAttacker.getCol(),
+                    capture.getToRow(),
+                    capture.getToCol(),
+                    board.getPiece(capture.getToRow(), capture.getToCol())
+            );
+            moveStack[i] = recapture;
+            board.movePiece(recapture);
+
+            attackerValue = capturerValue;
+            currentTurn = !currentTurn;
+        }
+
+        for (int index = i; index >= 0; index--) {
+            if (moveStack[index] != null) {
+                board.undoMove(moveStack[index]);
+            }
+        }
+
+        //
+        while (--i > 0) {
+            gain[i - 1] = -Math.max(-gain[i - 1], gain[i]);
+        }
+
+        return gain[0];
+    }
+
+    private PiecePosition findCheapestAttacker(Board board, int targetRow, int targetCol, boolean isWhite) {
+        Piece[][] grid = board.getPieces();
+        int cheapest = Integer.MAX_VALUE;
+        PiecePosition cheapestPos = null;
+
+        List<PiecePosition> attackers = board.getPieceCache().getList(isWhite);
+
+        for (PiecePosition attackerPos : attackers) {
+            int row = attackerPos.getRow();
+            int col = attackerPos.getCol();
+            Piece p = attackerPos.getPiece();
+
+            if (!attacksSquare(p, row, col, targetRow, targetCol, grid)) {
+                continue;
+            }
+
+            Move testMove = new Move(row, col, targetRow, targetCol, grid[targetRow][targetCol]);
+            if (!moveGenerator.isLegalMove(board, testMove, isWhite)) {
+                continue;
+            }
+
+            int value = materialEvaluator.getPieceValue(p);
+            if (value < cheapest) {
+                cheapest = value;
+                cheapestPos = attackerPos;
+            }
+        }
+
+        return cheapestPos;
+    }
 
     /**
      * Find the cheapest piece defending a target square
@@ -186,21 +274,28 @@ public class QuiescenceSearch {
      * @param attackerIsWhite true if the attacker is white (defender is black)
      * @return the material value of the cheapest defender, or -1 if no defender exists
      */
+    @Deprecated
     private int findCheapestDefender(Board board, int targetRow, int targetCol, boolean attackerIsWhite) {
         Piece[][] grid = board.getPieces();
         int cheapest = Integer.MAX_VALUE;
+        List<PiecePosition> defenders = board.getPieceCache().getList(!attackerIsWhite);
+        for (PiecePosition defenderPos : defenders) {
+            int row = defenderPos.getRow();
+            int col = defenderPos.getCol();
+            Piece p = defenderPos.getPiece();
 
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                Piece p = grid[row][col];
-                if (p == null || p.isWhite() == attackerIsWhite) continue;
+            if (!attacksSquare(p, row, col, targetRow, targetCol, grid)) {
+                continue;
+            }
 
-                if (attacksSquare(p, row, col, targetRow, targetCol, grid)) {
-                    int value = materialEvaluator.getPieceValue(p);
-                    if (value < cheapest) {
-                        cheapest = value;
-                    }
-                }
+            Move recapture = new Move(row, col, targetRow, targetCol, grid[targetRow][targetCol]);
+            if (!moveGenerator.isLegalMove(board, recapture, !attackerIsWhite)) {
+                continue; // is it pinned or illegal?
+            }
+
+            int value = materialEvaluator.getPieceValue(p);
+            if (value < cheapest) {
+                cheapest = value;
             }
         }
 

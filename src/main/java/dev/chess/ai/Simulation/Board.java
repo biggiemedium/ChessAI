@@ -2,40 +2,43 @@ package dev.chess.ai.Simulation;
 
 import dev.chess.ai.Engine.Move.Move;
 import dev.chess.ai.Simulation.Impl.*;
+import dev.chess.ai.Util.Board.PieceCache;
+import dev.chess.ai.Util.Board.ZobristHasher;
+import dev.chess.ai.Util.Math.PiecePosition;
 
-import java.util.Random;
+import java.util.List;
 
 /**
  * Chess boards use an 8x8 grid
- *
+ * <p>
  * https://www.chess.com/article/view/chess-board-dimensions
+ * <p>
+ * We are now Caching pieces to
+ *
+ * @version 2.0
  */
 public class Board {
 
     private Piece[][] pieces;
-    private long zobristHash;
-    private static final long[][][] pieceKeys = new long[64][12][2]; // [square][pieceType][color]
+    private long zobristHash; /// {@link ZobristHasher}
 
     // King Cache -> moved from MoveGenerator bc I don't want an instance of it here
     private int whiteKingRow = 7, whiteKingCol = 4;
     private int blackKingRow = 0, blackKingCol = 4;
 
+    private PieceCache pieceCache;
+
     public Board() {
         this.pieces = new Piece[8][8];
+        this.pieceCache = new PieceCache();
         initializeBoard();
-        initializeZobristHash();
-        initializeKingPositions();
+        this.initialize();
     }
 
-    static {
-        Random rand = new Random(12345);
-        for (int sq = 0; sq < 64; sq++) {
-            for (int piece = 0; piece < 12; piece++) {
-                for (int color = 0; color < 2; color++) {
-                    pieceKeys[sq][piece][color] = rand.nextLong();
-                }
-            }
-        }
+    private void initialize() {
+        this.pieceCache.rebuild(pieces);
+        initializeKingPositions();
+        zobristHash = ZobristHasher.computeHash(pieces);
     }
 
     private void initializeKingPositions() {
@@ -90,38 +93,6 @@ public class Board {
         pieces[7][7] = new Rook(true);
     }
 
-    private void initializeZobristHash() {
-        zobristHash = 0;
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                Piece piece = pieces[row][col];
-                if (piece != null) {
-                    int square = row * 8 + col;
-                    int pieceIndex = getPieceIndex(piece);
-                    int colorIndex = piece.isWhite() ? 0 : 1;
-                    zobristHash ^= pieceKeys[square][pieceIndex][colorIndex];
-                }
-            }
-        }
-    }
-
-    /**
-     * Map a piece to an index (0-11)
-     * 0=Pawn, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King (repeated for each color)
-     */
-    private int getPieceIndex(Piece piece) {
-        char symbol = Character.toLowerCase(piece.getSymbol());
-        switch (symbol) {
-            case 'p': return 0;
-            case 'n': return 1;
-            case 'b': return 2;
-            case 'r': return 3;
-            case 'q': return 4;
-            case 'k': return 5;
-            default: return 0;
-        }
-    }
-
     public Piece getPiece(int row, int col) {
         if (!isValidPosition(row, col)) {
             return null;
@@ -130,31 +101,50 @@ public class Board {
     }
 
     public void setPiece(int row, int col, Piece piece) {
-        if (isValidPosition(row, col)) {
-            pieces[row][col] = piece;
+        if (!isValidPosition(row, col)) {
+            return;
         }
+
+        Piece oldPiece = pieces[row][col];
+        // Update our cached positions
+        if (oldPiece != null) {
+            zobristHash ^= ZobristHasher.getPieceKey(row, col, oldPiece);
+            pieceCache.remove(row, col, oldPiece.isWhite());
+        }
+        if (piece != null) {
+            zobristHash ^= ZobristHasher.getPieceKey(row, col, piece);
+            pieceCache.add(row, col, piece);
+        }
+
+        pieces[row][col] = piece;
+
     }
 
     public void movePiece(Move move) {
+        int fromRow = move.getFromRow();
+        int fromCol = move.getFromCol();
+        int toRow = move.getToRow();
+        int toCol = move.getToCol();
+
         Piece moving = getPiece(move.getFromRow(), move.getFromCol());
         Piece captured = getPiece(move.getToRow(), move.getToCol());
 
         if (moving == null) return;
-        int fromSquare = move.getFromRow() * 8 + move.getFromCol();
-        int toSquare = move.getToRow() * 8 + move.getToCol();
-        int pieceIndex = getPieceIndex(moving);
-        int colorIndex = moving.isWhite() ? 0 : 1;
 
-        this.zobristHash ^= pieceKeys[fromSquare][pieceIndex][colorIndex];
+        // Hash
+        zobristHash ^= ZobristHasher.getPieceKey(fromRow, fromCol, moving);
         if (captured != null) {
-            int capturedIndex = getPieceIndex(captured);
-            int capturedColorIndex = captured.isWhite() ? 0 : 1;
-            zobristHash ^= pieceKeys[toSquare][capturedIndex][capturedColorIndex];
+            zobristHash ^= ZobristHasher.getPieceKey(toRow, toCol, captured);
         }
-        this.zobristHash ^= pieceKeys[toSquare][pieceIndex][colorIndex];
+        zobristHash ^= ZobristHasher.getPieceKey(toRow, toCol, moving);
 
-        setPiece(move.getToRow(), move.getToCol(), moving);
-        setPiece(move.getFromRow(), move.getFromCol(), null);
+        if (captured != null) {
+            pieceCache.remove(toRow, toCol, captured.isWhite());
+        }
+
+        pieceCache.update(fromRow, fromCol, toRow, toCol, moving);
+        pieces[toRow][toCol] = moving;
+        pieces[fromRow][fromCol] = null;
 
         if (moving instanceof King) {
             if (moving.isWhite()) {
@@ -168,27 +158,32 @@ public class Board {
     }
 
     public void undoMove(Move move) {
+        int fromRow = move.getFromRow();
+        int fromCol = move.getFromCol();
+        int toRow = move.getToRow();
+        int toCol = move.getToCol();
+
         Piece moving = getPiece(move.getToRow(), move.getToCol());
         Piece captured = move.getCapturedPiece();
 
         if (moving == null) return;
 
-        int fromSquare = move.getFromRow() * 8 + move.getFromCol();
-        int toSquare = move.getToRow() * 8 + move.getToCol();
-        int pieceIndex = getPieceIndex(moving);
-        int colorIndex = moving.isWhite() ? 0 : 1;
-
-        this.zobristHash ^= pieceKeys[toSquare][pieceIndex][colorIndex];
+        zobristHash ^= ZobristHasher.getPieceKey(toRow, toCol, moving);
         if (captured != null) {
-            int capturedIndex = getPieceIndex(captured);
-            int capturedColorIndex = captured.isWhite() ? 0 : 1;
-            zobristHash ^= pieceKeys[toSquare][capturedIndex][capturedColorIndex];
+            zobristHash ^= ZobristHasher.getPieceKey(toRow, toCol, captured);
         }
-        this.zobristHash ^= pieceKeys[fromSquare][pieceIndex][colorIndex];
+        zobristHash ^= ZobristHasher.getPieceKey(fromRow, fromCol, moving);
 
-        setPiece(move.getFromRow(), move.getFromCol(), moving);
-        setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
+        pieceCache.update(toRow, toCol, fromRow, fromCol, moving);
+        if (captured != null) {
+            pieceCache.add(toRow, toCol, captured);
+        }
 
+        // update grid directly. don't depend on setPiece
+        pieces[fromRow][fromCol] = moving;
+        pieces[toRow][toCol] = captured;
+
+        // King pos update
         if (moving instanceof King) {
             if (moving.isWhite()) {
                 whiteKingRow = move.getFromRow();
@@ -214,8 +209,15 @@ public class Board {
             return false;
         }
 
+        Piece captured = pieces[toRow][toCol];
+        if (captured != null) {
+            pieceCache.remove(toRow, toCol, captured.isWhite());
+        }
+        pieceCache.update(fromRow, fromCol, toRow, toCol, piece);
+
         pieces[toRow][toCol] = piece;
         pieces[fromRow][fromCol] = null;
+
         return true;
     }
 
@@ -239,6 +241,7 @@ public class Board {
                 pieces[row][col] = null;
             }
         }
+        this.pieceCache.clear();
         this.zobristHash = 0;
         this.whiteKingRow = this.whiteKingCol = -1;
         this.blackKingRow = this.blackKingCol = -1;
@@ -247,8 +250,9 @@ public class Board {
     public void reset() {
         clear();
         initializeBoard();
-        initializeZobristHash();
+        this.pieceCache.rebuild(pieces);
         initializeKingPositions();
+        zobristHash = ZobristHasher.computeHash(pieces);
     }
 
     public Piece[][] getPieces() {
@@ -261,6 +265,10 @@ public class Board {
 
     public static int algebraicToCol(String notation) {
         return notation.charAt(0) - 'a';
+    }
+
+    public PieceCache getPieceCache() {
+        return pieceCache;
     }
 
     public long getZobristHash() {

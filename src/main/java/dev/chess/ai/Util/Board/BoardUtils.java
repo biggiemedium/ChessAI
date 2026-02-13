@@ -1,4 +1,4 @@
-package dev.chess.ai.Util;
+package dev.chess.ai.Util.Board;
 
 import dev.chess.ai.Simulation.Board;
 import dev.chess.ai.Simulation.Impl.*;

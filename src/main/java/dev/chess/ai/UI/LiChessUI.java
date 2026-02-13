@@ -12,7 +12,7 @@ import dev.chess.ai.Network.Impl.LiChessClient;
 import dev.chess.ai.Simulation.Board;
 import dev.chess.ai.Simulation.Game;
 import dev.chess.ai.UI.Viewer.ConsoleViewer;
-import dev.chess.ai.Util.BoardUtils;
+import dev.chess.ai.Util.Board.BoardUtils;
 import dev.chess.ai.Util.Interface.ILiChessEvents;
 import dev.chess.ai.Util.Interface.SceneMaker;
 import javafx.application.Platform;

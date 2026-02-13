@@ -13,7 +13,7 @@ public class StockfishEngine {
     private BufferedWriter writer;
     private boolean isReady;
 
-    private static final String STOCKFISH_PATH = "PATH";
+    private static final String STOCKFISH_PATH = "C:\\Users\\James Kemp\\Desktop\\stockfish\\stockfish-windows-x86-64-avx2.exe";
 
     public StockfishEngine() {
         this.isReady = false;
